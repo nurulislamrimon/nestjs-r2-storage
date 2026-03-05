@@ -5,7 +5,6 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "start": "nest start",
     "build": "tsc",
     "test": "jest",
     "prepublishOnly": "npm run build"

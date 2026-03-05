@@ -1,9 +1,10 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Inject } from '@nestjs/common';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as path from 'path';
 import * as mime from 'mime-types';
 import { StorageOptions } from './interfaces/storage-options.interface';
+import { STORAGE_OPTIONS } from './constants';
 
 export interface UploadUrlResult {
   uploadUrl: string;
@@ -28,6 +29,12 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
   private s3Client: S3Client;
   private options: StorageOptions;
   private readonly defaultExpiry = 3600;
+
+  constructor(
+    @Inject(STORAGE_OPTIONS) private readonly storageOptions: StorageOptions,
+  ) {
+    this.options = storageOptions;
+  }
 
   onModuleInit() {
     this.initializeClient();

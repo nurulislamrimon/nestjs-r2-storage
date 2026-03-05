@@ -1,12 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { CloudflareService, DownloadUrlResult } from './cloudflare.service';
+import { Injectable } from "@nestjs/common";
+import { CloudflareService, DownloadUrlResult } from "./cloudflare.service";
 import {
   getNestedValue,
   setNestedValue,
   isArrayPath,
   getArrayBasePath,
   parseFieldPath,
-} from './utils/nested-value.util';
+} from "./utils/nested-value.util";
 
 export interface PhotoField {
   field: string;
@@ -66,13 +66,10 @@ export class PhotoManagerService {
    * - Adds them to corresponding array items with the specified urlField
    */
   async appendPhotoUrls<T extends Record<string, any>>(
-    payload: T,
-    photoFields: PhotoField[],
-  ): Promise<T>;
-  async appendPhotoUrls<T extends Record<string, any>>(
     payload: T[],
     photoFields: PhotoField[],
   ): Promise<T[]>;
+
   async appendPhotoUrls<T extends Record<string, any>>(
     payload: T | T[],
     photoFields: PhotoField[],
@@ -130,11 +127,15 @@ export class PhotoManagerService {
     const urlField = photoField.urlField || urlFieldFn(photoField.field);
 
     try {
-      const { downloadUrl, publicUrl } = await this.cloudflareService.getDownloadUrl(fieldValue);
+      const { downloadUrl, publicUrl } =
+        await this.cloudflareService.getDownloadUrl(fieldValue);
       const finalUrl = publicUrl || downloadUrl;
       return setNestedValue(item, urlField, finalUrl);
     } catch (error) {
-      console.error(`Failed to generate download URL for ${fieldValue}:`, error);
+      console.error(
+        `Failed to generate download URL for ${fieldValue}:`,
+        error,
+      );
       return setNestedValue(item, urlField, null);
     }
   }
@@ -147,7 +148,7 @@ export class PhotoManagerService {
     const { segments } = parseFieldPath(photoField.field);
     const arrayPath = segments
       .map((s) => (s.isArray ? `${s.key}[]` : s.key))
-      .join('.');
+      .join(".");
     const arrayValue = getNestedValue(item, arrayPath);
 
     if (!Array.isArray(arrayValue)) {
@@ -166,11 +167,15 @@ export class PhotoManagerService {
         }
 
         try {
-          const { downloadUrl, publicUrl } = await this.cloudflareService.getDownloadUrl(photoValue);
+          const { downloadUrl, publicUrl } =
+            await this.cloudflareService.getDownloadUrl(photoValue);
           const finalUrl = publicUrl || downloadUrl;
           return { ...arrayItem, [urlField]: finalUrl };
         } catch (error) {
-          console.error(`Failed to generate download URL for ${photoValue}:`, error);
+          console.error(
+            `Failed to generate download URL for ${photoValue}:`,
+            error,
+          );
           return { ...arrayItem, [urlField]: null };
         }
       }),
@@ -201,7 +206,7 @@ export class PhotoManagerService {
   async createObjectWithPhotos<T extends Record<string, any>>(
     payload: T,
     photoFields: PhotoField[],
-    filePrefix: string = 'uploads',
+    filePrefix: string = "uploads",
   ): Promise<CreatePhotosResult<T>> {
     let updatedPayload = { ...payload };
     const uploadUrls: PhotoUploadResponse[] = [];
@@ -277,7 +282,7 @@ export class PhotoManagerService {
     payload: T,
     existingObject: T,
     photoFields: PhotoField[],
-    filePrefix: string = 'uploads',
+    filePrefix: string = "uploads",
   ): Promise<UpdatePhotosResult<T>> {
     let updatedPayload = { ...payload };
     const uploadUrls: PhotoUploadResponse[] = [];
@@ -285,7 +290,10 @@ export class PhotoManagerService {
     let storageDecrease = 0;
     const deletedFiles: string[] = [];
 
-    const existingFiles = this.extractExistingFiles(existingObject, photoFields);
+    const existingFiles = this.extractExistingFiles(
+      existingObject,
+      photoFields,
+    );
     const newPhotoRequests = this.extractPhotoUploadRequests(
       payload,
       photoFields,
@@ -298,7 +306,8 @@ export class PhotoManagerService {
     );
 
     if (filesToDelete.length > 0) {
-      const deleteResults = await this.cloudflareService.deleteFiles(filesToDelete);
+      const deleteResults =
+        await this.cloudflareService.deleteFiles(filesToDelete);
       deletedFiles.push(...deleteResults.success);
 
       for (const fileKey of deleteResults.success) {
@@ -421,11 +430,11 @@ export class PhotoManagerService {
           ? getNestedValue(payload, photoField.sizeField)
           : 0;
 
-        if (typeof fieldValue === 'string' && fieldValue.length > 0) {
+        if (typeof fieldValue === "string" && fieldValue.length > 0) {
           requests.push({
             field: photoField.field,
             filename: fieldValue,
-            size: sizeValue as number || 0,
+            size: (sizeValue as number) || 0,
             prefix: filePrefix,
           });
         }
@@ -445,7 +454,7 @@ export class PhotoManagerService {
 
     const arrayPath = segments
       .map((s) => (s.isArray ? `${s.key}[]` : s.key))
-      .join('.');
+      .join(".");
     const arrayValue = getNestedValue(payload, arrayPath);
 
     if (!Array.isArray(arrayValue)) {
@@ -454,14 +463,14 @@ export class PhotoManagerService {
 
     const { key: photoKey } = segments[segments.length - 1];
     const sizeKey = photoField.sizeField
-      ? photoField.sizeField.split('.').pop()
+      ? photoField.sizeField.split(".").pop()
       : null;
 
     for (let i = 0; i < arrayValue.length; i++) {
       const item = arrayValue[i];
       const photoValue = item[photoKey];
 
-      if (!photoValue || typeof photoValue !== 'string') {
+      if (!photoValue || typeof photoValue !== "string") {
         continue;
       }
 
@@ -499,18 +508,18 @@ export class PhotoManagerService {
         const { segments } = parseFieldPath(photoField.field);
         const arrayPath = segments
           .map((s) => (s.isArray ? `${s.key}[]` : s.key))
-          .join('.');
+          .join(".");
         const arrayValue = getNestedValue(object, arrayPath);
 
         if (Array.isArray(arrayValue)) {
           const { key } = segments[segments.length - 1];
           for (const item of arrayValue) {
-            if (item[key] && typeof item[key] === 'string') {
+            if (item[key] && typeof item[key] === "string") {
               fileKeys.push(item[key]);
             }
           }
         }
-      } else if (typeof fieldValue === 'string' && fieldValue.length > 0) {
+      } else if (typeof fieldValue === "string" && fieldValue.length > 0) {
         fileKeys.push(fieldValue);
       }
     }
@@ -536,7 +545,7 @@ export class PhotoManagerService {
   }
 
   private normalizeFilename(filename: string): string {
-    return filename.split('/').pop() || filename;
+    return filename.split("/").pop() || filename;
   }
 
   /**
@@ -553,7 +562,7 @@ export class PhotoManagerService {
     const arrayPath = segments
       .slice(0, -1)
       .map((s) => (s.isArray ? `${s.key}[]` : s.key))
-      .join('.');
+      .join(".");
     const { key: photoKey } = segments[segments.length - 1];
 
     const arrayValue = getNestedValue(payload, arrayPath);

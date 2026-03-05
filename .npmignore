@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.ts
+!*.d.ts
+src/
+.env
+.git
+.gitignore
+*.log
+.DS_Store
+test-app/

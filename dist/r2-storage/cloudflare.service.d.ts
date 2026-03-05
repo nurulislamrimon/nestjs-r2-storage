@@ -16,9 +16,11 @@ export interface FileInfo {
     contentType?: string;
 }
 export declare class CloudflareService implements OnModuleInit, OnModuleDestroy {
+    private readonly storageOptions;
     private s3Client;
     private options;
     private readonly defaultExpiry;
+    constructor(storageOptions: StorageOptions);
     onModuleInit(): void;
     onModuleDestroy(): void;
     private initializeClient;
