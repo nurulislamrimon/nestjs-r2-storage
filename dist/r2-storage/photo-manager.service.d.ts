@@ -1,4 +1,4 @@
-import { CloudflareService } from './cloudflare.service';
+import { CloudflareService } from "./cloudflare.service";
 export interface PhotoField {
     field: string;
     urlField?: string;
@@ -39,7 +39,6 @@ export interface AppendUrlsOptions {
 export declare class PhotoManagerService {
     private readonly cloudflareService;
     constructor(cloudflareService: CloudflareService);
-    appendPhotoUrls<T extends Record<string, any>>(payload: T, photoFields: PhotoField[]): Promise<T>;
     appendPhotoUrls<T extends Record<string, any>>(payload: T[], photoFields: PhotoField[]): Promise<T[]>;
     private handleSingleFieldUrl;
     private handleArrayFieldUrls;
