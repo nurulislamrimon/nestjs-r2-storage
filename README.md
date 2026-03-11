@@ -1,5 +1,11 @@
 # nestjs-r2-storage
 
+[![npm version](https://img.shields.io/npm/v/nestjs-r2-storage.svg)](https://www.npmjs.com/package/nestjs-r2-storage)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**Author:** Nurul Islam Rimon  
+**GitHub:** [https://github.com/nurulislamrimon/nestjs-r2-storage](https://github.com/nurulislamrimon/nestjs-r2-storage)
+
 Production-ready NestJS module for Cloudflare R2 object storage management.
 
 ## Features
