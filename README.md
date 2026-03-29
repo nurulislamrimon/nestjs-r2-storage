@@ -18,6 +18,11 @@ Production-ready NestJS module for Cloudflare R2 object storage management.
 - **Storage Usage Tracking** - Track storage used, increased, and decreased
 - **Full CRUD Lifecycle** - Create, Update, Delete file operations
 
+## Requirements
+
+- Node.js >= 18
+- NestJS >= 10.0.0 or >= 11.0.0
+
 ## Installation
 
 ```bash
