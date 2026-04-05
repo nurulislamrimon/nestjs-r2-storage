@@ -8,6 +8,7 @@ export interface UploadUrlResult {
     fileKey: string;
     publicUrl: string | null;
     mimeType: string;
+    sizeField?: number;
 }
 export interface DownloadUrlResult {
     downloadUrl: string;

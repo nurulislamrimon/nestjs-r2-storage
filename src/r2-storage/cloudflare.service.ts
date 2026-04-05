@@ -18,6 +18,12 @@ export interface UploadUrlResult {
   fileKey: string;
   publicUrl: string | null;
   mimeType: string;
+  /**
+   * File size constraint for client-side validation.
+   * This is NOT passed to AWS SDK signing to avoid SignatureDoesNotMatch errors.
+   * Clients should validate file size before uploading.
+   */
+  sizeField?: number;
 }
 
 export interface DownloadUrlResult {
@@ -71,6 +77,15 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
   }
 
   private initializeClient(): void {
+    /**
+     * Configure S3Client for Cloudflare R2.
+     * 
+     * requestChecksumCalculation: "WHEN_REQUIRED" prevents AWS SDK from automatically
+     * adding checksum headers (MD5, CRC32, etc.) that break with R2's S3-compatible API.
+     * 
+     * forcePathStyle: true is required for R2 (uses path-style URLs).
+     * region: "auto" is required for R2.
+     */
     this.s3Client = new S3Client({
       endpoint: this.options.endpoint,
       region: this.options.region || 'auto',
@@ -79,6 +94,7 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
         secretAccessKey: this.options.secretAccessKey,
       },
       forcePathStyle: true,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
     });
   }
 
@@ -118,15 +134,32 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
 
     const mimeType = contentType || this.detectMimeType(sanitizedFilename);
 
+    /**
+     * Create PutObjectCommand WITHOUT ContentLength.
+     * 
+     * Why ContentLength is NOT used in signing:
+     * - Browsers may calculate Content-Length differently (with/without compression)
+     * - This causes SignatureDoesNotMatch errors during upload
+     * - The signed URL should only authorize the operation, not the exact payload size
+     * 
+     * Use sizeField instead to let clients validate file size before upload.
+     */
     const command = new PutObjectCommand({
       Bucket: this.options.bucketName,
       Key: finalFileKey,
       ContentType: mimeType,
-      ContentLength: fileSize,
     });
 
     const expiry = this.options.signedUrlExpiry || this.defaultExpiry;
-    const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: expiry });
+    /**
+     * Generate presigned URL with minimal signing.
+     * Only signs: host (and content-type if provided).
+     * Explicitly prevents signing content-length to avoid browser inconsistency.
+     */
+    const uploadUrl = await getSignedUrl(this.s3Client, command, { 
+      expiresIn: expiry,
+      signableHeaders: new Set(['host', 'content-type']),
+    });
 
     let publicUrl: string | null = null;
     if (this.options.publicUrlBase && this.isPublicAccessAllowed()) {
@@ -138,6 +171,7 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
       fileKey: finalFileKey,
       publicUrl,
       mimeType,
+      sizeField: fileSize,
     };
   }
 

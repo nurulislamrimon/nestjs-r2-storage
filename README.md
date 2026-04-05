@@ -189,6 +189,26 @@ await cloudflare.deleteFile('uploads/avatar.png');
 const exists = await cloudflare.fileExists('uploads/avatar.png');
 ```
 
+### Presigned URL Security
+
+The module uses secure presigned URL generation:
+
+- **Content-Length is NOT signed** - Prevents `SignatureDoesNotMatch` errors (browsers calculate it differently)
+- **Checksum headers disabled** - Uses `requestChecksumCalculation: "WHEN_REQUIRED"` to avoid R2 compatibility issues
+- **Minimal signing** - Only signs `host` and `content-type` headers
+
+```typescript
+const result = await cloudflare.getUploadUrl('avatar.png', 1024000);
+
+// result = {
+//   uploadUrl: "https://signed-url...",
+//   fileKey: "uploads/avatar_123.png",
+//   publicUrl: "https://cdn.example.com/uploads/avatar_123.png",
+//   mimeType: "image/png",
+//   sizeField: 1024000  // Use this for client-side validation before upload
+// }
+```
+
 ### PhotoManagerService
 
 High-level photo management.

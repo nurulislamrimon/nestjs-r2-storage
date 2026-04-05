@@ -94,6 +94,7 @@ let CloudflareService = class CloudflareService {
                 secretAccessKey: this.options.secretAccessKey,
             },
             forcePathStyle: true,
+            requestChecksumCalculation: 'WHEN_REQUIRED',
         });
     }
     setOptions(options) {
@@ -125,10 +126,12 @@ let CloudflareService = class CloudflareService {
             Bucket: this.options.bucketName,
             Key: finalFileKey,
             ContentType: mimeType,
-            ContentLength: fileSize,
         });
         const expiry = this.options.signedUrlExpiry || this.defaultExpiry;
-        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, { expiresIn: expiry });
+        const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, {
+            expiresIn: expiry,
+            signableHeaders: new Set(['host', 'content-type']),
+        });
         let publicUrl = null;
         if (this.options.publicUrlBase && this.isPublicAccessAllowed()) {
             publicUrl = `${this.options.publicUrlBase}/${finalFileKey}`;
@@ -138,6 +141,7 @@ let CloudflareService = class CloudflareService {
             fileKey: finalFileKey,
             publicUrl,
             mimeType,
+            sizeField: fileSize,
         };
     }
     async getDownloadUrl(fileKey) {
