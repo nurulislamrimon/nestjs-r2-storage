@@ -17,16 +17,61 @@ Production-ready NestJS module for Cloudflare R2 object storage management.
 - **Array Field Support** - Handle paths like `products[].image`, `gallery[].photo`
 - **Storage Usage Tracking** - Track storage used, increased, and decreased
 - **Full CRUD Lifecycle** - Create, Update, Delete file operations
+- **Access Control Modes** - Control public vs signed URL access (`private`, `public-read`, `hybrid`)
 
-## Requirements
+## Access Control Modes
 
-- Node.js >= 18
-- NestJS >= 10.0.0 or >= 11.0.0
+Cloudflare R2 does NOT enforce ACLs like AWS S3 - the R2 API ignores ACL headers. True security is achieved by controlling URL exposure.
 
-## Installation
+### Modes
 
-```bash
-npm install nestjs-r2-storage
+| Mode | Public URLs | Signed URLs | Use Case |
+|------|-------------|-------------|----------|
+| `private` | Not allowed | Required | Maximum security - only signed access |
+| `public-read` | Allowed | Optional | Public files (e.g., static assets) |
+| `hybrid` | Allowed | Allowed | Mixed content (default) |
+
+### Private Mode
+
+Only presigned URLs are allowed. Public URL generation throws `AccessModeError`.
+
+```typescript
+R2StorageModule.forRoot({
+  // ... other options
+  accessMode: 'private',
+  publicUrlBase: 'https://cdn.example.com', // still configured but not used
+});
+```
+
+Response in private mode:
+```json
+{
+  "uploadUrl": "https://signed-url...",
+  "publicUrl": null
+}
+```
+
+### Public-Read Mode
+
+Public URLs are generated. Signed URLs are optional.
+
+```typescript
+R2StorageModule.forRoot({
+  // ... other options
+  accessMode: 'public-read',
+  publicUrlBase: 'https://cdn.example.com',
+});
+```
+
+### Hybrid Mode (Default)
+
+Both public and signed access are allowed for backward compatibility.
+
+```typescript
+R2StorageModule.forRoot({
+  // ... other options
+  accessMode: 'hybrid', // default
+});
 ```
 
 ## Quick Start
@@ -278,6 +323,25 @@ products[].images[]    -> products[0].images[0], products[0].images[1], ...
 | `region` | string | No | AWS region (default: 'auto') |
 | `publicUrlBase` | string | No | Base URL for public access |
 | `signedUrlExpiry` | number | No | Signed URL expiry in seconds (default: 3600) |
+| `accessMode` | string | No | Access mode: `private`, `public-read`, `hybrid` (default: `hybrid`) |
+
+## Error Handling
+
+### AccessModeError
+
+Thrown when attempting to generate public URLs in `private` access mode.
+
+```typescript
+import { AccessModeError } from 'nestjs-r2-storage';
+
+try {
+  const result = await cloudflare.getUploadUrl('file.png', 1024);
+} catch (error) {
+  if (error instanceof AccessModeError) {
+    console.log(error.message); // "Public URL generation is not allowed in 'private' access mode..."
+  }
+}
+```
 
 ## Async Configuration
 

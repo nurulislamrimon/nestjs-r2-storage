@@ -1,3 +1,4 @@
+export type AccessMode = 'private' | 'public-read' | 'hybrid';
 export interface StorageOptions {
     endpoint: string;
     accessKeyId: string;
@@ -6,6 +7,7 @@ export interface StorageOptions {
     region?: string;
     publicUrlBase?: string;
     signedUrlExpiry?: number;
+    accessMode?: AccessMode;
 }
 export interface FileFieldConfig {
     field: string;

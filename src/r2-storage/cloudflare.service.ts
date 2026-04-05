@@ -1,21 +1,28 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Inject } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Inject, BadRequestException } from '@nestjs/common';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as path from 'path';
 import * as mime from 'mime-types';
-import { StorageOptions } from './interfaces/storage-options.interface';
+import { StorageOptions, AccessMode } from './interfaces/storage-options.interface';
 import { STORAGE_OPTIONS } from './constants';
+
+export class AccessModeError extends BadRequestException {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AccessModeError';
+  }
+}
 
 export interface UploadUrlResult {
   uploadUrl: string;
   fileKey: string;
-  publicUrl?: string;
+  publicUrl: string | null;
   mimeType: string;
 }
 
 export interface DownloadUrlResult {
   downloadUrl: string;
-  publicUrl?: string;
+  publicUrl: string | null;
 }
 
 export interface FileInfo {
@@ -29,11 +36,28 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
   private s3Client: S3Client;
   private options: StorageOptions;
   private readonly defaultExpiry = 3600;
+  private readonly defaultAccessMode: AccessMode = 'hybrid';
 
   constructor(
     @Inject(STORAGE_OPTIONS) private readonly storageOptions: StorageOptions,
   ) {
     this.options = storageOptions;
+  }
+
+  private get accessMode(): AccessMode {
+    return this.options.accessMode || this.defaultAccessMode;
+  }
+
+  private isPublicAccessAllowed(): boolean {
+    return this.accessMode === 'public-read' || this.accessMode === 'hybrid';
+  }
+
+  private ensurePublicAccessAllowed(): void {
+    if (this.accessMode === 'private') {
+      throw new AccessModeError(
+        'Public URL generation is not allowed in "private" access mode. Use presigned URLs for file access.',
+      );
+    }
   }
 
   onModuleInit() {
@@ -104,8 +128,8 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
     const expiry = this.options.signedUrlExpiry || this.defaultExpiry;
     const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: expiry });
 
-    let publicUrl: string | undefined;
-    if (this.options.publicUrlBase) {
+    let publicUrl: string | null = null;
+    if (this.options.publicUrlBase && this.isPublicAccessAllowed()) {
       publicUrl = `${this.options.publicUrlBase}/${finalFileKey}`;
     }
 
@@ -126,8 +150,8 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
     const expiry = this.options.signedUrlExpiry || this.defaultExpiry;
     const downloadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: expiry });
 
-    let publicUrl: string | undefined;
-    if (this.options.publicUrlBase) {
+    let publicUrl: string | null = null;
+    if (this.options.publicUrlBase && this.isPublicAccessAllowed()) {
       publicUrl = `${this.options.publicUrlBase}/${fileKey}`;
     }
 

@@ -25,7 +25,7 @@ export interface PhotoUploadResponse {
   field: string;
   fileKey: string;
   uploadUrl: string;
-  publicUrl?: string;
+  publicUrl: string | null;
   filename?: string;
 }
 

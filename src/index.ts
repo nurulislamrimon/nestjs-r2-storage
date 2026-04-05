@@ -3,6 +3,7 @@ export {
   FileFieldConfig,
   PhotoFieldConfig,
   StorageModuleOptions,
+  AccessMode,
 } from './r2-storage/interfaces/storage-options.interface';
 
 export {
@@ -10,6 +11,7 @@ export {
   UploadUrlResult,
   DownloadUrlResult,
   FileInfo,
+  AccessModeError,
 } from './r2-storage/cloudflare.service';
 
 export {

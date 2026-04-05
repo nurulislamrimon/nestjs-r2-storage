@@ -14,7 +14,7 @@ export interface PhotoUploadResponse {
     field: string;
     fileKey: string;
     uploadUrl: string;
-    publicUrl?: string;
+    publicUrl: string | null;
     filename?: string;
 }
 export interface CreatePhotosResult<T extends Record<string, any>> {

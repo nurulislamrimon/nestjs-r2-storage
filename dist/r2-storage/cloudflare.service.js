@@ -45,18 +45,37 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CloudflareService = void 0;
+exports.CloudflareService = exports.AccessModeError = void 0;
 const common_1 = require("@nestjs/common");
 const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const path = __importStar(require("path"));
 const mime = __importStar(require("mime-types"));
 const constants_1 = require("./constants");
+class AccessModeError extends common_1.BadRequestException {
+    constructor(message) {
+        super(message);
+        this.name = 'AccessModeError';
+    }
+}
+exports.AccessModeError = AccessModeError;
 let CloudflareService = class CloudflareService {
     constructor(storageOptions) {
         this.storageOptions = storageOptions;
         this.defaultExpiry = 3600;
+        this.defaultAccessMode = 'hybrid';
         this.options = storageOptions;
+    }
+    get accessMode() {
+        return this.options.accessMode || this.defaultAccessMode;
+    }
+    isPublicAccessAllowed() {
+        return this.accessMode === 'public-read' || this.accessMode === 'hybrid';
+    }
+    ensurePublicAccessAllowed() {
+        if (this.accessMode === 'private') {
+            throw new AccessModeError('Public URL generation is not allowed in "private" access mode. Use presigned URLs for file access.');
+        }
     }
     onModuleInit() {
         this.initializeClient();
@@ -110,8 +129,8 @@ let CloudflareService = class CloudflareService {
         });
         const expiry = this.options.signedUrlExpiry || this.defaultExpiry;
         const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, { expiresIn: expiry });
-        let publicUrl;
-        if (this.options.publicUrlBase) {
+        let publicUrl = null;
+        if (this.options.publicUrlBase && this.isPublicAccessAllowed()) {
             publicUrl = `${this.options.publicUrlBase}/${finalFileKey}`;
         }
         return {
@@ -128,8 +147,8 @@ let CloudflareService = class CloudflareService {
         });
         const expiry = this.options.signedUrlExpiry || this.defaultExpiry;
         const downloadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, { expiresIn: expiry });
-        let publicUrl;
-        if (this.options.publicUrlBase) {
+        let publicUrl = null;
+        if (this.options.publicUrlBase && this.isPublicAccessAllowed()) {
             publicUrl = `${this.options.publicUrlBase}/${fileKey}`;
         }
         return {

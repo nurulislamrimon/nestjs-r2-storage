@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAllArrayItemPaths = exports.getArrayElementPath = exports.getArrayBasePath = exports.isArrayPath = exports.collectNestedValues = exports.setNestedValue = exports.getNestedValue = exports.parseFieldPath = exports.StorageInfo = exports.UploadUrls = exports.PhotoFields = exports.R2StorageModule = exports.PhotoManagerService = exports.CloudflareService = void 0;
+exports.getAllArrayItemPaths = exports.getArrayElementPath = exports.getArrayBasePath = exports.isArrayPath = exports.collectNestedValues = exports.setNestedValue = exports.getNestedValue = exports.parseFieldPath = exports.StorageInfo = exports.UploadUrls = exports.PhotoFields = exports.R2StorageModule = exports.PhotoManagerService = exports.AccessModeError = exports.CloudflareService = void 0;
 var cloudflare_service_1 = require("./r2-storage/cloudflare.service");
 Object.defineProperty(exports, "CloudflareService", { enumerable: true, get: function () { return cloudflare_service_1.CloudflareService; } });
+Object.defineProperty(exports, "AccessModeError", { enumerable: true, get: function () { return cloudflare_service_1.AccessModeError; } });
 var photo_manager_service_1 = require("./r2-storage/photo-manager.service");
 Object.defineProperty(exports, "PhotoManagerService", { enumerable: true, get: function () { return photo_manager_service_1.PhotoManagerService; } });
 var r2_storage_module_1 = require("./r2-storage/r2-storage.module");

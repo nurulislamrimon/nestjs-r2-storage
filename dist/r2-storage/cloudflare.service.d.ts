@@ -1,14 +1,17 @@
-import { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { OnModuleInit, OnModuleDestroy, BadRequestException } from '@nestjs/common';
 import { StorageOptions } from './interfaces/storage-options.interface';
+export declare class AccessModeError extends BadRequestException {
+    constructor(message: string);
+}
 export interface UploadUrlResult {
     uploadUrl: string;
     fileKey: string;
-    publicUrl?: string;
+    publicUrl: string | null;
     mimeType: string;
 }
 export interface DownloadUrlResult {
     downloadUrl: string;
-    publicUrl?: string;
+    publicUrl: string | null;
 }
 export interface FileInfo {
     size: number;
@@ -20,7 +23,11 @@ export declare class CloudflareService implements OnModuleInit, OnModuleDestroy 
     private s3Client;
     private options;
     private readonly defaultExpiry;
+    private readonly defaultAccessMode;
     constructor(storageOptions: StorageOptions);
+    private get accessMode();
+    private isPublicAccessAllowed;
+    private ensurePublicAccessAllowed;
     onModuleInit(): void;
     onModuleDestroy(): void;
     private initializeClient;
