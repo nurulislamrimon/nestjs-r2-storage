@@ -8,31 +8,44 @@ export interface PathSegment {
   arrayIndex?: number;
 }
 
+/**
+ * Parse path like:
+ *  - user.profile.image
+ *  - gallery[].photo
+ *  - variants[0].images[].url
+ */
 export function parseFieldPath(path: string): ParsedPath {
   const segments: PathSegment[] = [];
-  const regex = /([^\[\].]+)(?:\[(\d*)\])?/g;
-  let match: RegExpExecArray | null;
+  const parts = path.split(".");
 
-  while ((match = regex.exec(path)) !== null) {
-    const hasIndex = match[2] !== undefined && match[2] !== '';
-    const hasEmptyBrackets = match[2] === '';
+  for (const part of parts) {
+    const match = part.match(/^([^\[\]]+)(?:\[(\d*)\])?$/);
+    if (!match) continue;
+
+    const key = match[1];
+    const indexRaw = match[2];
+
+    const hasIndex = indexRaw !== undefined && indexRaw !== "";
+    const hasEmptyBrackets = indexRaw === "";
+
     segments.push({
-      key: match[1],
-      isArray: hasEmptyBrackets || hasIndex,
-      arrayIndex: hasIndex ? parseInt(match[2], 10) : undefined,
+      key,
+      isArray: hasIndex || hasEmptyBrackets,
+      arrayIndex: hasIndex ? parseInt(indexRaw, 10) : undefined,
     });
   }
 
   return { segments };
 }
 
+/**
+ * Get nested value safely
+ */
 export function getNestedValue<T extends Record<string, any>>(
   obj: T,
   path: string,
 ): any {
-  if (!path || !obj) {
-    return undefined;
-  }
+  if (!path || !obj) return undefined;
 
   const { segments } = parseFieldPath(path);
   let current: any = obj;
@@ -40,109 +53,121 @@ export function getNestedValue<T extends Record<string, any>>(
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
 
-    if (current === null || current === undefined) {
-      return undefined;
-    }
+    if (current == null) return undefined;
+
+    // access key first
+    current = current[segment.key];
+
+    if (current == null) return undefined;
 
     if (segment.isArray) {
-      if (!Array.isArray(current)) {
-        return undefined;
-      }
+      if (!Array.isArray(current)) return undefined;
 
-      if (i === segments.length - 1) {
-        return current;
-      }
-      const nextSegment = segments[i + 1];
-      if (nextSegment && nextSegment.key && !nextSegment.isArray && !nextSegment.arrayIndex) {
-        return current;
-      }
-
+      // indexed array
       if (segment.arrayIndex !== undefined) {
         current = current[segment.arrayIndex];
-      } else {
+        continue;
+      }
+
+      // [] case
+      if (i === segments.length - 1) return current;
+
+      const next = segments[i + 1];
+
+      // return array so caller can map
+      if (next && !next.isArray && next.arrayIndex === undefined) {
         return current;
       }
-    } else {
-      current = current[segment.key];
     }
   }
 
   return current;
 }
 
+/**
+ * Set nested value safely (immutable)
+ */
 export function setNestedValue<T extends Record<string, any>>(
   obj: T,
   path: string,
   value: any,
 ): T {
-  if (!path) {
-    return obj;
-  }
+  if (!path) return obj;
 
   const { segments } = parseFieldPath(path);
-  const result = { ...obj };
+  const result: any = { ...obj };
+
   let current: any = result;
 
-  for (let i = 0; i < segments.length - 1; i++) {
+  for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
-    const nextSegment = segments[i + 1];
+    const isLast = i === segments.length - 1;
 
-    if (current[segment.key] === undefined) {
-      current[segment.key] = nextSegment.isArray ? [] : {};
-    } else if (segment.isArray) {
-      current[segment.key] = [...current[segment.key]];
-    } else {
-      current[segment.key] = { ...current[segment.key] };
+    // ensure key exists
+    if (current[segment.key] == null) {
+      current[segment.key] = segment.isArray ? [] : {};
     }
 
-    current = current[segment.key];
-
-    if (segment.isArray && segment.arrayIndex !== undefined) {
-      if (current[segment.arrayIndex] === undefined) {
-        current[segment.arrayIndex] = {};
-      } else {
-        current[segment.arrayIndex] = { ...current[segment.arrayIndex] };
+    if (segment.isArray) {
+      if (!Array.isArray(current[segment.key])) {
+        current[segment.key] = [];
       }
-      current = current[segment.arrayIndex];
-    }
-  }
 
-  const lastSegment = segments[segments.length - 1];
+      const arr = current[segment.key];
 
-  if (lastSegment.isArray && lastSegment.arrayIndex !== undefined) {
-    if (!Array.isArray(current)) {
-      current = [];
+      // indexed array
+      if (segment.arrayIndex !== undefined) {
+        if (!arr[segment.arrayIndex]) {
+          arr[segment.arrayIndex] = {};
+        }
+
+        if (isLast) {
+          arr[segment.arrayIndex] = value;
+        } else {
+          arr[segment.arrayIndex] = { ...arr[segment.arrayIndex] };
+          current = arr[segment.arrayIndex];
+        }
+      } else {
+        // [] case
+        if (isLast) {
+          arr.push(value);
+        } else {
+          const newItem: any = {};
+          arr.push(newItem);
+          current = newItem;
+        }
+      }
     } else {
-      current = [...current];
+      if (isLast) {
+        current[segment.key] = value;
+      } else {
+        current[segment.key] = { ...current[segment.key] };
+        current = current[segment.key];
+      }
     }
-    current[lastSegment.arrayIndex] = {
-      ...current[lastSegment.arrayIndex],
-      [lastSegment.key]: value,
-    };
-  } else {
-    current[lastSegment.key] = value;
   }
 
   return result;
 }
 
+/**
+ * Collect values (handles array returns)
+ */
 export function collectNestedValues<T extends Record<string, any>>(
   obj: T,
   path: string,
 ): any[] {
   const value = getNestedValue(obj, path);
 
-  if (value === undefined) {
-    return [];
-  }
-
-  if (Array.isArray(value)) {
-    return value;
-  }
+  if (value === undefined) return [];
+  if (Array.isArray(value)) return value;
 
   return [value];
 }
 
+/**
+ * Helpers
+ */
 export function isArrayPath(path: string): boolean {
   return /\[\]/.test(path);
 }
@@ -153,15 +178,19 @@ export function getArrayBasePath(path: string): string {
 }
 
 export function getArrayElementPath(path: string): string {
-  return path.replace('[]', '');
+  return path.replace("[]", "");
 }
 
-export function getAllArrayItemPaths(path: string, arrayLength: number): string[] {
+export function getAllArrayItemPaths(
+  path: string,
+  arrayLength: number,
+): string[] {
   const basePath = getArrayBasePath(path);
   const elementPath = getArrayElementPath(path);
-  const cleanElementPath = elementPath.replace(/^\./, '');
+  const cleanElementPath = elementPath.replace(/^\./, "");
 
   const paths: string[] = [];
+
   for (let i = 0; i < arrayLength; i++) {
     paths.push(`${basePath}[${i}].${cleanElementPath}`);
   }

@@ -389,6 +389,20 @@ R2StorageModule.forRootAsync({
 
 ## Changelog
 
+### v1.2.6 (2025-04-20)
+
+- Refactored getNestedValue: access key first, then handle array segments
+- Refactored setNestedValue: proper handling of empty brackets [] and indexed arrays [0]
+- Robust parsing of paths: user.profile.image, gallery[].photo, variants[0].images[].url
+
+### v1.2.5 (2025-04-20)
+
+- Rewrote parseFieldPath to split by dot then parse each segment (fixes regex state bugs)
+- Fixed getNestedValue array traversal when next key is a property (not array/index)
+- Fixed setNestedValue for empty array brackets `[]` and indexed arrays `[0]`
+- Added null/undefined guards throughout
+- Supports: `gallery[].photo`, `variants[].images[].url`, `a[].b[0].c`
+
 ### v1.2.4 (2025-04-20)
 
 - Fixed parseFieldPath regex to handle keys containing dots

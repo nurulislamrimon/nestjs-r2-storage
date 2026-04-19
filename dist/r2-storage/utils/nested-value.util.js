@@ -10,110 +10,110 @@ exports.getArrayElementPath = getArrayElementPath;
 exports.getAllArrayItemPaths = getAllArrayItemPaths;
 function parseFieldPath(path) {
     const segments = [];
-    const regex = /([^\[\].]+)(?:\[(\d*)\])?/g;
-    let match;
-    while ((match = regex.exec(path)) !== null) {
-        const hasIndex = match[2] !== undefined && match[2] !== '';
-        const hasEmptyBrackets = match[2] === '';
+    const parts = path.split(".");
+    for (const part of parts) {
+        const match = part.match(/^([^\[\]]+)(?:\[(\d*)\])?$/);
+        if (!match)
+            continue;
+        const key = match[1];
+        const indexRaw = match[2];
+        const hasIndex = indexRaw !== undefined && indexRaw !== "";
+        const hasEmptyBrackets = indexRaw === "";
         segments.push({
-            key: match[1],
-            isArray: hasEmptyBrackets || hasIndex,
-            arrayIndex: hasIndex ? parseInt(match[2], 10) : undefined,
+            key,
+            isArray: hasIndex || hasEmptyBrackets,
+            arrayIndex: hasIndex ? parseInt(indexRaw, 10) : undefined,
         });
     }
     return { segments };
 }
 function getNestedValue(obj, path) {
-    if (!path || !obj) {
+    if (!path || !obj)
         return undefined;
-    }
     const { segments } = parseFieldPath(path);
     let current = obj;
     for (let i = 0; i < segments.length; i++) {
         const segment = segments[i];
-        if (current === null || current === undefined) {
+        if (current == null)
             return undefined;
-        }
+        current = current[segment.key];
+        if (current == null)
+            return undefined;
         if (segment.isArray) {
-            if (!Array.isArray(current)) {
+            if (!Array.isArray(current))
                 return undefined;
-            }
-            if (i === segments.length - 1) {
-                return current;
-            }
-            const nextSegment = segments[i + 1];
-            if (nextSegment && nextSegment.key && !nextSegment.isArray && !nextSegment.arrayIndex) {
-                return current;
-            }
             if (segment.arrayIndex !== undefined) {
                 current = current[segment.arrayIndex];
+                continue;
             }
-            else {
+            if (i === segments.length - 1)
+                return current;
+            const next = segments[i + 1];
+            if (next && !next.isArray && next.arrayIndex === undefined) {
                 return current;
             }
-        }
-        else {
-            current = current[segment.key];
         }
     }
     return current;
 }
 function setNestedValue(obj, path, value) {
-    if (!path) {
+    if (!path)
         return obj;
-    }
     const { segments } = parseFieldPath(path);
     const result = { ...obj };
     let current = result;
-    for (let i = 0; i < segments.length - 1; i++) {
+    for (let i = 0; i < segments.length; i++) {
         const segment = segments[i];
-        const nextSegment = segments[i + 1];
-        if (current[segment.key] === undefined) {
-            current[segment.key] = nextSegment.isArray ? [] : {};
+        const isLast = i === segments.length - 1;
+        if (current[segment.key] == null) {
+            current[segment.key] = segment.isArray ? [] : {};
         }
-        else if (segment.isArray) {
-            current[segment.key] = [...current[segment.key]];
-        }
-        else {
-            current[segment.key] = { ...current[segment.key] };
-        }
-        current = current[segment.key];
-        if (segment.isArray && segment.arrayIndex !== undefined) {
-            if (current[segment.arrayIndex] === undefined) {
-                current[segment.arrayIndex] = {};
+        if (segment.isArray) {
+            if (!Array.isArray(current[segment.key])) {
+                current[segment.key] = [];
+            }
+            const arr = current[segment.key];
+            if (segment.arrayIndex !== undefined) {
+                if (!arr[segment.arrayIndex]) {
+                    arr[segment.arrayIndex] = {};
+                }
+                if (isLast) {
+                    arr[segment.arrayIndex] = value;
+                }
+                else {
+                    arr[segment.arrayIndex] = { ...arr[segment.arrayIndex] };
+                    current = arr[segment.arrayIndex];
+                }
             }
             else {
-                current[segment.arrayIndex] = { ...current[segment.arrayIndex] };
+                if (isLast) {
+                    arr.push(value);
+                }
+                else {
+                    const newItem = {};
+                    arr.push(newItem);
+                    current = newItem;
+                }
             }
-            current = current[segment.arrayIndex];
-        }
-    }
-    const lastSegment = segments[segments.length - 1];
-    if (lastSegment.isArray && lastSegment.arrayIndex !== undefined) {
-        if (!Array.isArray(current)) {
-            current = [];
         }
         else {
-            current = [...current];
+            if (isLast) {
+                current[segment.key] = value;
+            }
+            else {
+                current[segment.key] = { ...current[segment.key] };
+                current = current[segment.key];
+            }
         }
-        current[lastSegment.arrayIndex] = {
-            ...current[lastSegment.arrayIndex],
-            [lastSegment.key]: value,
-        };
-    }
-    else {
-        current[lastSegment.key] = value;
     }
     return result;
 }
 function collectNestedValues(obj, path) {
     const value = getNestedValue(obj, path);
-    if (value === undefined) {
+    if (value === undefined)
         return [];
-    }
-    if (Array.isArray(value)) {
+    if (Array.isArray(value))
         return value;
-    }
     return [value];
 }
 function isArrayPath(path) {
@@ -124,12 +124,12 @@ function getArrayBasePath(path) {
     return match ? match[1] : path;
 }
 function getArrayElementPath(path) {
-    return path.replace('[]', '');
+    return path.replace("[]", "");
 }
 function getAllArrayItemPaths(path, arrayLength) {
     const basePath = getArrayBasePath(path);
     const elementPath = getArrayElementPath(path);
-    const cleanElementPath = elementPath.replace(/^\./, '');
+    const cleanElementPath = elementPath.replace(/^\./, "");
     const paths = [];
     for (let i = 0; i < arrayLength; i++) {
         paths.push(`${basePath}[${i}].${cleanElementPath}`);
