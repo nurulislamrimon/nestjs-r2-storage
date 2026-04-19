@@ -13,8 +13,8 @@ function parseFieldPath(path) {
     const regex = /([^\[\].]+)(?:\[(\d*)\])?/g;
     let match;
     while ((match = regex.exec(path)) !== null) {
-        const hasEmptyBrackets = match[0].includes('[]');
         const hasIndex = match[2] !== undefined && match[2] !== '';
+        const hasEmptyBrackets = match[2] === '';
         segments.push({
             key: match[1],
             isArray: hasEmptyBrackets || hasIndex,

@@ -147,13 +147,18 @@ export class PhotoManagerService {
   ): Promise<T> {
     const { segments } = parseFieldPath(photoField.field);
     const lastArrayIndex = segments.findIndex((s) => s.isArray);
+
+    if (lastArrayIndex === -1) {
+      return item;
+    }
+
     const arrayPath = segments
       .slice(0, lastArrayIndex + 1)
       .map((s) => s.key)
       .join(".");
     const arrayValue = getNestedValue(item, arrayPath);
 
-    if (!Array.isArray(arrayValue)) {
+    if (!arrayValue || !Array.isArray(arrayValue)) {
       return item;
     }
 
@@ -455,13 +460,18 @@ export class PhotoManagerService {
     const { segments } = parseFieldPath(photoField.field);
 
     const lastArrayIndex = segments.findIndex((s) => s.isArray);
+
+    if (lastArrayIndex === -1) {
+      return requests;
+    }
+
     const arrayPath = segments
       .slice(0, lastArrayIndex + 1)
       .map((s) => s.key)
       .join(".");
     const arrayValue = getNestedValue(payload, arrayPath);
 
-    if (!Array.isArray(arrayValue)) {
+    if (!arrayValue || !Array.isArray(arrayValue)) {
       return requests;
     }
 
@@ -511,18 +521,25 @@ export class PhotoManagerService {
       if (isArrayPath(photoField.field)) {
         const { segments } = parseFieldPath(photoField.field);
         const lastArrayIndex = segments.findIndex((s) => s.isArray);
+
+        if (lastArrayIndex === -1) {
+          continue;
+        }
+
         const arrayPath = segments
           .slice(0, lastArrayIndex + 1)
           .map((s) => s.key)
           .join(".");
         const arrayValue = getNestedValue(object, arrayPath);
 
-        if (Array.isArray(arrayValue)) {
-          const { key } = segments[segments.length - 1];
-          for (const item of arrayValue) {
-            if (item[key] && typeof item[key] === "string") {
-              fileKeys.push(item[key]);
-            }
+        if (!arrayValue || !Array.isArray(arrayValue)) {
+          continue;
+        }
+
+        const { key } = segments[segments.length - 1];
+        for (const item of arrayValue) {
+          if (item && item[key] && typeof item[key] === "string") {
+            fileKeys.push(item[key]);
           }
         }
       } else if (typeof fieldValue === "string" && fieldValue.length > 0) {
@@ -566,6 +583,11 @@ export class PhotoManagerService {
   ): Promise<T> {
     const { segments } = parseFieldPath(fieldPath);
     const lastArrayIndex = segments.findIndex((s) => s.isArray);
+
+    if (lastArrayIndex === -1) {
+      return payload;
+    }
+
     const arrayPath = segments
       .slice(0, lastArrayIndex + 1)
       .map((s) => s.key)
@@ -574,7 +596,7 @@ export class PhotoManagerService {
 
     const arrayValue = getNestedValue(payload, arrayPath);
 
-    if (!Array.isArray(arrayValue)) {
+    if (!arrayValue || !Array.isArray(arrayValue)) {
       return payload;
     }
 

@@ -58,12 +58,15 @@ let PhotoManagerService = class PhotoManagerService {
     async handleArrayFieldUrls(item, photoField, urlFieldFn) {
         const { segments } = (0, nested_value_util_1.parseFieldPath)(photoField.field);
         const lastArrayIndex = segments.findIndex((s) => s.isArray);
+        if (lastArrayIndex === -1) {
+            return item;
+        }
         const arrayPath = segments
             .slice(0, lastArrayIndex + 1)
             .map((s) => s.key)
             .join(".");
         const arrayValue = (0, nested_value_util_1.getNestedValue)(item, arrayPath);
-        if (!Array.isArray(arrayValue)) {
+        if (!arrayValue || !Array.isArray(arrayValue)) {
             return item;
         }
         const urlField = photoField.urlField || urlFieldFn(photoField.field);
@@ -220,12 +223,15 @@ let PhotoManagerService = class PhotoManagerService {
         const requests = [];
         const { segments } = (0, nested_value_util_1.parseFieldPath)(photoField.field);
         const lastArrayIndex = segments.findIndex((s) => s.isArray);
+        if (lastArrayIndex === -1) {
+            return requests;
+        }
         const arrayPath = segments
             .slice(0, lastArrayIndex + 1)
             .map((s) => s.key)
             .join(".");
         const arrayValue = (0, nested_value_util_1.getNestedValue)(payload, arrayPath);
-        if (!Array.isArray(arrayValue)) {
+        if (!arrayValue || !Array.isArray(arrayValue)) {
             return requests;
         }
         const { key: photoKey } = segments[segments.length - 1];
@@ -259,17 +265,21 @@ let PhotoManagerService = class PhotoManagerService {
             if ((0, nested_value_util_1.isArrayPath)(photoField.field)) {
                 const { segments } = (0, nested_value_util_1.parseFieldPath)(photoField.field);
                 const lastArrayIndex = segments.findIndex((s) => s.isArray);
+                if (lastArrayIndex === -1) {
+                    continue;
+                }
                 const arrayPath = segments
                     .slice(0, lastArrayIndex + 1)
                     .map((s) => s.key)
                     .join(".");
                 const arrayValue = (0, nested_value_util_1.getNestedValue)(object, arrayPath);
-                if (Array.isArray(arrayValue)) {
-                    const { key } = segments[segments.length - 1];
-                    for (const item of arrayValue) {
-                        if (item[key] && typeof item[key] === "string") {
-                            fileKeys.push(item[key]);
-                        }
+                if (!arrayValue || !Array.isArray(arrayValue)) {
+                    continue;
+                }
+                const { key } = segments[segments.length - 1];
+                for (const item of arrayValue) {
+                    if (item && item[key] && typeof item[key] === "string") {
+                        fileKeys.push(item[key]);
                     }
                 }
             }
@@ -289,13 +299,16 @@ let PhotoManagerService = class PhotoManagerService {
     async updateArrayFieldWithNewFileKey(payload, fieldPath, oldFilename, newFileKey) {
         const { segments } = (0, nested_value_util_1.parseFieldPath)(fieldPath);
         const lastArrayIndex = segments.findIndex((s) => s.isArray);
+        if (lastArrayIndex === -1) {
+            return payload;
+        }
         const arrayPath = segments
             .slice(0, lastArrayIndex + 1)
             .map((s) => s.key)
             .join(".");
         const { key: photoKey } = segments[segments.length - 1];
         const arrayValue = (0, nested_value_util_1.getNestedValue)(payload, arrayPath);
-        if (!Array.isArray(arrayValue)) {
+        if (!arrayValue || !Array.isArray(arrayValue)) {
             return payload;
         }
         const oldNormalized = this.normalizeFilename(oldFilename);

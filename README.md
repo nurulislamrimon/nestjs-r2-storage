@@ -322,15 +322,26 @@ const result = await photoManager.deletePhotosFromObject(product, photoFields);
 ```
 shop.logo
 profile.avatar
-products[].image
+user.profile.image
 ```
 
 ### Array Fields
 
 ```
 gallery[].photo        -> gallery[0].photo, gallery[1].photo, ...
-products[].images[]    -> products[0].images[0], products[0].images[1], ...
+products[].image      -> products[0].image, products[1].image, ...
+variants[].images[]   -> variants[0].images[0], variants[0].images[1], ...
 ```
+
+### Supported Patterns
+
+| Path | Description |
+|------|-------------|
+| `shop.logo` | Simple nested field |
+| `user.profile.image` | Deeply nested with dots |
+| `gallery[].photo` | Array of objects |
+| `products[].images[]` | Array containing array |
+| `variants[0].images[].url` | Indexed array with nested array |
 
 ## Configuration Options
 
@@ -375,6 +386,20 @@ R2StorageModule.forRootAsync({
   }),
 })
 ```
+
+## Changelog
+
+### v1.2.4 (2025-04-20)
+
+- Fixed parseFieldPath regex to handle keys containing dots
+- Fixed parseFieldPath empty bracket handling (`[]` now correctly returns `undefined` for arrayIndex)
+- Fixed getNestedValue array traversal for paths like `variants[].photo`
+- Added null/undefined guards in array field processing methods
+- Improved safety for deeply nested array structures
+
+### v1.2.3 (2025-04-13)
+
+- Added AccessModeError for private mode public URL generation
 
 ## License
 
