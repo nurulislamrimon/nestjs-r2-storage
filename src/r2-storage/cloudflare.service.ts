@@ -39,7 +39,7 @@ export interface FileInfo {
 
 @Injectable()
 export class CloudflareService implements OnModuleInit, OnModuleDestroy {
-  private s3Client: S3Client;
+  private s3Client!: S3Client;
   private options: StorageOptions;
   private readonly defaultExpiry = 3600;
   private readonly defaultAccessMode: AccessMode = 'hybrid';

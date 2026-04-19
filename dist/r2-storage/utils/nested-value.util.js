@@ -10,7 +10,7 @@ exports.getArrayElementPath = getArrayElementPath;
 exports.getAllArrayItemPaths = getAllArrayItemPaths;
 function parseFieldPath(path) {
     const segments = [];
-    const regex = /(\w+)(?:\[(\d*)\])?/g;
+    const regex = /([^\[\].]+)(?:\[(\d*)\])?/g;
     let match;
     while ((match = regex.exec(path)) !== null) {
         segments.push({

@@ -10,7 +10,7 @@ export interface PathSegment {
 
 export function parseFieldPath(path: string): ParsedPath {
   const segments: PathSegment[] = [];
-  const regex = /(\w+)(?:\[(\d*)\])?/g;
+  const regex = /([^\[\].]+)(?:\[(\d*)\])?/g;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(path)) !== null) {
