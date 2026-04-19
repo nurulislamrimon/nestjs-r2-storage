@@ -13,10 +13,12 @@ function parseFieldPath(path) {
     const regex = /([^\[\].]+)(?:\[(\d*)\])?/g;
     let match;
     while ((match = regex.exec(path)) !== null) {
+        const hasEmptyBrackets = match[0].includes('[]');
+        const hasIndex = match[2] !== undefined && match[2] !== '';
         segments.push({
             key: match[1],
-            isArray: match[0].includes('['),
-            arrayIndex: match[2] !== undefined ? parseInt(match[2], 10) : undefined,
+            isArray: hasEmptyBrackets || hasIndex,
+            arrayIndex: hasIndex ? parseInt(match[2], 10) : undefined,
         });
     }
     return { segments };
@@ -35,6 +37,13 @@ function getNestedValue(obj, path) {
         if (segment.isArray) {
             if (!Array.isArray(current)) {
                 return undefined;
+            }
+            if (i === segments.length - 1) {
+                return current;
+            }
+            const nextSegment = segments[i + 1];
+            if (nextSegment && nextSegment.key && !nextSegment.isArray && !nextSegment.arrayIndex) {
+                return current;
             }
             if (segment.arrayIndex !== undefined) {
                 current = current[segment.arrayIndex];

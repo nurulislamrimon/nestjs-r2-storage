@@ -146,8 +146,10 @@ export class PhotoManagerService {
     urlFieldFn: (field: string) => string,
   ): Promise<T> {
     const { segments } = parseFieldPath(photoField.field);
+    const lastArrayIndex = segments.findIndex((s) => s.isArray);
     const arrayPath = segments
-      .map((s) => (s.isArray ? `${s.key}[]` : s.key))
+      .slice(0, lastArrayIndex + 1)
+      .map((s) => s.key)
       .join(".");
     const arrayValue = getNestedValue(item, arrayPath);
 
@@ -452,8 +454,10 @@ export class PhotoManagerService {
     const requests: PhotoUploadRequest[] = [];
     const { segments } = parseFieldPath(photoField.field);
 
+    const lastArrayIndex = segments.findIndex((s) => s.isArray);
     const arrayPath = segments
-      .map((s) => (s.isArray ? `${s.key}[]` : s.key))
+      .slice(0, lastArrayIndex + 1)
+      .map((s) => s.key)
       .join(".");
     const arrayValue = getNestedValue(payload, arrayPath);
 
@@ -506,8 +510,10 @@ export class PhotoManagerService {
 
       if (isArrayPath(photoField.field)) {
         const { segments } = parseFieldPath(photoField.field);
+        const lastArrayIndex = segments.findIndex((s) => s.isArray);
         const arrayPath = segments
-          .map((s) => (s.isArray ? `${s.key}[]` : s.key))
+          .slice(0, lastArrayIndex + 1)
+          .map((s) => s.key)
           .join(".");
         const arrayValue = getNestedValue(object, arrayPath);
 
@@ -559,9 +565,10 @@ export class PhotoManagerService {
     newFileKey: string,
   ): Promise<T> {
     const { segments } = parseFieldPath(fieldPath);
+    const lastArrayIndex = segments.findIndex((s) => s.isArray);
     const arrayPath = segments
-      .slice(0, -1)
-      .map((s) => (s.isArray ? `${s.key}[]` : s.key))
+      .slice(0, lastArrayIndex + 1)
+      .map((s) => s.key)
       .join(".");
     const { key: photoKey } = segments[segments.length - 1];
 

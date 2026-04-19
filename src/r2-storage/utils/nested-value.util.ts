@@ -14,10 +14,12 @@ export function parseFieldPath(path: string): ParsedPath {
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(path)) !== null) {
+    const hasEmptyBrackets = match[0].includes('[]');
+    const hasIndex = match[2] !== undefined && match[2] !== '';
     segments.push({
       key: match[1],
-      isArray: match[0].includes('['),
-      arrayIndex: match[2] !== undefined ? parseInt(match[2], 10) : undefined,
+      isArray: hasEmptyBrackets || hasIndex,
+      arrayIndex: hasIndex ? parseInt(match[2], 10) : undefined,
     });
   }
 
@@ -45,6 +47,14 @@ export function getNestedValue<T extends Record<string, any>>(
     if (segment.isArray) {
       if (!Array.isArray(current)) {
         return undefined;
+      }
+
+      if (i === segments.length - 1) {
+        return current;
+      }
+      const nextSegment = segments[i + 1];
+      if (nextSegment && nextSegment.key && !nextSegment.isArray && !nextSegment.arrayIndex) {
+        return current;
       }
 
       if (segment.arrayIndex !== undefined) {
