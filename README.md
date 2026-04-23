@@ -6,6 +6,8 @@
 **Author:** Nurul Islam Rimon  
 **GitHub:** [https://github.com/nurulislamrimon/nestjs-r2-storage](https://github.com/nurulislamrimon/nestjs-r2-storage)
 
+![Nestjs R2 Storage](nestjs-r2-storage.gif)
+
 Production-ready NestJS module for Cloudflare R2 object storage management.
 
 ## Features
@@ -25,11 +27,11 @@ Cloudflare R2 does NOT enforce ACLs like AWS S3 - the R2 API ignores ACL headers
 
 ### Modes
 
-| Mode | Public URLs | Signed URLs | Use Case |
-|------|-------------|-------------|----------|
-| `private` | Not allowed | Required | Maximum security - only signed access |
-| `public-read` | Allowed | Optional | Public files (e.g., static assets) |
-| `hybrid` | Allowed | Allowed | Mixed content (default) |
+| Mode          | Public URLs | Signed URLs | Use Case                              |
+| ------------- | ----------- | ----------- | ------------------------------------- |
+| `private`     | Not allowed | Required    | Maximum security - only signed access |
+| `public-read` | Allowed     | Optional    | Public files (e.g., static assets)    |
+| `hybrid`      | Allowed     | Allowed     | Mixed content (default)               |
 
 ### Private Mode
 
@@ -38,12 +40,13 @@ Only presigned URLs are allowed. Public URL generation throws `AccessModeError`.
 ```typescript
 R2StorageModule.forRoot({
   // ... other options
-  accessMode: 'private',
-  publicUrlBase: 'https://cdn.example.com', // still configured but not used
+  accessMode: "private",
+  publicUrlBase: "https://cdn.example.com", // still configured but not used
 });
 ```
 
 Response in private mode:
+
 ```json
 {
   "uploadUrl": "https://signed-url...",
@@ -58,8 +61,8 @@ Public URLs are generated. Signed URLs are optional.
 ```typescript
 R2StorageModule.forRoot({
   // ... other options
-  accessMode: 'public-read',
-  publicUrlBase: 'https://cdn.example.com',
+  accessMode: "public-read",
+  publicUrlBase: "https://cdn.example.com",
 });
 ```
 
@@ -70,7 +73,7 @@ Both public and signed access are allowed for backward compatibility.
 ```typescript
 R2StorageModule.forRoot({
   // ... other options
-  accessMode: 'hybrid', // default
+  accessMode: "hybrid", // default
 });
 ```
 
@@ -80,8 +83,8 @@ R2StorageModule.forRoot({
 
 ```typescript
 // app.module.ts
-import { Module } from '@nestjs/common';
-import { R2StorageModule } from 'nestjs-r2-storage';
+import { Module } from "@nestjs/common";
+import { R2StorageModule } from "nestjs-r2-storage";
 
 @Module({
   imports: [
@@ -90,7 +93,7 @@ import { R2StorageModule } from 'nestjs-r2-storage';
       accessKeyId: process.env.R2_ACCESS_KEY,
       secretAccessKey: process.env.R2_SECRET_KEY,
       bucketName: process.env.R2_BUCKET,
-      region: 'auto',
+      region: "auto",
       publicUrlBase: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET}`,
       signedUrlExpiry: 3600,
     }),
@@ -102,8 +105,12 @@ export class AppModule {}
 ### 2. Use in Your Service
 
 ```typescript
-import { Injectable } from '@nestjs/common';
-import { PhotoManagerService, PhotoField, CloudflareService } from 'nestjs-r2-storage';
+import { Injectable } from "@nestjs/common";
+import {
+  PhotoManagerService,
+  PhotoField,
+  CloudflareService,
+} from "nestjs-r2-storage";
 
 @Injectable()
 export class ProductService {
@@ -114,12 +121,19 @@ export class ProductService {
 
   async createProduct(payload: any) {
     const photoFields: PhotoField[] = [
-      { field: 'image', urlField: 'image_url', sizeField: 'image_size' },
-      { field: 'gallery[].photo', urlField: 'photo_url', sizeField: 'photo_size' },
+      { field: "image", urlField: "image_url", sizeField: "image_size" },
+      {
+        field: "gallery[].photo",
+        urlField: "photo_url",
+        sizeField: "photo_size",
+      },
     ];
 
-    const result = await this.photoManager.createObjectWithPhotos(payload, photoFields);
-    
+    const result = await this.photoManager.createObjectWithPhotos(
+      payload,
+      photoFields,
+    );
+
     // Return upload URLs to client for direct upload
     return {
       product: result.updatedPayload,
@@ -130,10 +144,10 @@ export class ProductService {
 
   async getProduct(id: string) {
     const product = await this.findProduct(id);
-    
+
     const photoFields: PhotoField[] = [
-      { field: 'image', urlField: 'image_url' },
-      { field: 'gallery[].photo', urlField: 'photo_url' },
+      { field: "image", urlField: "image_url" },
+      { field: "gallery[].photo", urlField: "photo_url" },
     ];
 
     return this.photoManager.appendPhotoUrls(product, photoFields);
@@ -141,13 +155,17 @@ export class ProductService {
 
   async updateProduct(id: string, payload: any) {
     const existing = await this.findProduct(id);
-    
+
     const photoFields: PhotoField[] = [
-      { field: 'image', urlField: 'image_url', sizeField: 'image_size' },
+      { field: "image", urlField: "image_url", sizeField: "image_size" },
     ];
 
-    const result = await this.photoManager.updateObjectWithPhotos(payload, existing, photoFields);
-    
+    const result = await this.photoManager.updateObjectWithPhotos(
+      payload,
+      existing,
+      photoFields,
+    );
+
     return {
       product: result.updatedPayload,
       uploadUrls: result.uploadUrls,
@@ -158,9 +176,9 @@ export class ProductService {
 
   async deleteProduct(id: string) {
     const product = await this.findProduct(id);
-    
+
     const photoFields: PhotoField[] = [
-      { field: 'image', urlField: 'image_url' },
+      { field: "image", urlField: "image_url" },
     ];
 
     await this.photoManager.deletePhotosFromObject(product, photoFields);
@@ -177,16 +195,16 @@ Direct R2 operations.
 
 ```typescript
 // Generate upload URL
-const uploadUrl = await cloudflare.getUploadUrl('avatar.png', 1024000);
+const uploadUrl = await cloudflare.getUploadUrl("avatar.png", 1024000);
 
 // Generate download URL
-const downloadUrl = await cloudflare.getDownloadUrl('uploads/avatar_123.png');
+const downloadUrl = await cloudflare.getDownloadUrl("uploads/avatar_123.png");
 
 // Delete file
-await cloudflare.deleteFile('uploads/avatar.png');
+await cloudflare.deleteFile("uploads/avatar.png");
 
 // Check if file exists
-const exists = await cloudflare.fileExists('uploads/avatar.png');
+const exists = await cloudflare.fileExists("uploads/avatar.png");
 ```
 
 ### Presigned URL Security
@@ -198,7 +216,7 @@ The module uses secure presigned URL generation:
 - **Minimal signing** - Only signs `host` and `content-type` headers
 
 ```typescript
-const result = await cloudflare.getUploadUrl('avatar.png', 1024000);
+const result = await cloudflare.getUploadUrl("avatar.png", 1024000);
 
 // result = {
 //   uploadUrl: "https://signed-url...",
@@ -219,28 +237,27 @@ Adds signed URLs to response objects.
 
 ```typescript
 const photoFields: PhotoField[] = [
-  { field: 'avatar', urlField: 'avatar_url' },
-  { field: 'shop.logo', urlField: 'logo_url' },
-  { field: 'products[].image', urlField: 'image_url' },
-  { field: 'gallery[].photo', urlField: 'photo_url' },
+  { field: "avatar", urlField: "avatar_url" },
+  { field: "shop.logo", urlField: "logo_url" },
+  { field: "products[].image", urlField: "image_url" },
+  { field: "gallery[].photo", urlField: "photo_url" },
 ];
 
 const result = await photoManager.appendPhotoUrls(product, photoFields);
 ```
 
 Input:
+
 ```json
 {
   "name": "Laptop",
   "image": "laptop.png",
-  "gallery": [
-    { "photo": "photo1.jpg" },
-    { "photo": "photo2.jpg" }
-  ]
+  "gallery": [{ "photo": "photo1.jpg" }, { "photo": "photo2.jpg" }]
 }
 ```
 
 Output:
+
 ```json
 {
   "name": "Laptop",
@@ -264,13 +281,13 @@ const payload = {
   image_size: 42000,
   gallery: [
     { photo: "photo1.jpg", photo_size: 10000 },
-    { photo: "photo2.jpg", photo_size: 15000 }
-  ]
+    { photo: "photo2.jpg", photo_size: 15000 },
+  ],
 };
 
 const photoFields: PhotoField[] = [
-  { field: 'image', sizeField: 'image_size' },
-  { field: 'gallery[].photo', sizeField: 'gallery[].photo_size' },
+  { field: "image", sizeField: "image_size" },
+  { field: "gallery[].photo", sizeField: "gallery[].photo_size" },
 ];
 
 const result = await photoManager.createObjectWithPhotos(payload, photoFields);
@@ -335,26 +352,26 @@ variants[].images[]   -> variants[0].images[0], variants[0].images[1], ...
 
 ### Supported Patterns
 
-| Path | Description |
-|------|-------------|
-| `shop.logo` | Simple nested field |
-| `user.profile.image` | Deeply nested with dots |
-| `gallery[].photo` | Array of objects |
-| `products[].images[]` | Array containing array |
+| Path                       | Description                     |
+| -------------------------- | ------------------------------- |
+| `shop.logo`                | Simple nested field             |
+| `user.profile.image`       | Deeply nested with dots         |
+| `gallery[].photo`          | Array of objects                |
+| `products[].images[]`      | Array containing array          |
 | `variants[0].images[].url` | Indexed array with nested array |
 
 ## Configuration Options
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `endpoint` | string | Yes | R2 endpoint URL |
-| `accessKeyId` | string | Yes | R2 access key ID |
-| `secretAccessKey` | string | Yes | R2 secret access key |
-| `bucketName` | string | Yes | R2 bucket name |
-| `region` | string | No | AWS region (default: 'auto') |
-| `publicUrlBase` | string | No | Base URL for public access |
-| `signedUrlExpiry` | number | No | Signed URL expiry in seconds (default: 3600) |
-| `accessMode` | string | No | Access mode: `private`, `public-read`, `hybrid` (default: `hybrid`) |
+| Option            | Type   | Required | Description                                                         |
+| ----------------- | ------ | -------- | ------------------------------------------------------------------- |
+| `endpoint`        | string | Yes      | R2 endpoint URL                                                     |
+| `accessKeyId`     | string | Yes      | R2 access key ID                                                    |
+| `secretAccessKey` | string | Yes      | R2 secret access key                                                |
+| `bucketName`      | string | Yes      | R2 bucket name                                                      |
+| `region`          | string | No       | AWS region (default: 'auto')                                        |
+| `publicUrlBase`   | string | No       | Base URL for public access                                          |
+| `signedUrlExpiry` | number | No       | Signed URL expiry in seconds (default: 3600)                        |
+| `accessMode`      | string | No       | Access mode: `private`, `public-read`, `hybrid` (default: `hybrid`) |
 
 ## Error Handling
 
@@ -363,10 +380,10 @@ variants[].images[]   -> variants[0].images[0], variants[0].images[1], ...
 Thrown when attempting to generate public URLs in `private` access mode.
 
 ```typescript
-import { AccessModeError } from 'nestjs-r2-storage';
+import { AccessModeError } from "nestjs-r2-storage";
 
 try {
-  const result = await cloudflare.getUploadUrl('file.png', 1024);
+  const result = await cloudflare.getUploadUrl("file.png", 1024);
 } catch (error) {
   if (error instanceof AccessModeError) {
     console.log(error.message); // "Public URL generation is not allowed in 'private' access mode..."
@@ -384,7 +401,7 @@ R2StorageModule.forRootAsync({
     secretAccessKey: process.env.R2_SECRET_KEY,
     bucketName: process.env.R2_BUCKET,
   }),
-})
+});
 ```
 
 ## Changelog
