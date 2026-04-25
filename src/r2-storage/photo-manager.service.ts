@@ -5,6 +5,7 @@ import {
   setNestedValue,
   isArrayPath,
   parseFieldPath,
+  getAllArrayItemPaths,
 } from "./utils/nested-value.util";
 import {
   AppendUrlsOptions,
@@ -16,19 +17,17 @@ import {
   UpdatePhotosResult,
 } from "./interfaces/photo-manager.interface";
 
+type FileMap = Map<string, string>;
+
+interface PhotoDiffResult {
+  fieldPath: string;
+  action: "upload" | "keep" | "delete";
+}
+
 @Injectable()
 export class PhotoManagerService {
   constructor(private readonly cloudflareService: CloudflareService) {}
 
-  /**
-   * Appends signed URLs to response objects based on defined photo fields.
-   * Supports nested paths like `shop.logo`, `products[].image`, `gallery[].photo`.
-   *
-   * For array paths like `gallery[].photo`:
-   * - Extracts all photo values from the array
-   * - Generates signed URLs for each
-   * - Adds them to corresponding array items with the specified urlField
-   */
   async appendPhotoUrls<T extends Record<string, any>>(
     payload: T,
     photoFields: PhotoField[],
@@ -160,25 +159,6 @@ export class PhotoManagerService {
     return setNestedValue(item, arrayPath, updatedArray);
   }
 
-  /**
-   * Creates a new object with photo upload URLs for all defined photo fields.
-   * Supports nested paths and array paths.
-   *
-   * Input example:
-   * {
-   *   name: "Laptop",
-   *   image: "laptop.png",
-   *   image_size: 42000,
-   *   gallery: [{ photo: "photo1.jpg", photo_size: 1000 }]
-   * }
-   *
-   * Output:
-   * {
-   *   updatedPayload: { name: "Laptop", image: "generated-key.png", gallery: [...] },
-   *   uploadUrls: [{ field: "image", fileKey: "...", uploadUrl: "..." }],
-   *   totalStorageUsed: 43000
-   * }
-   */
   async createObjectWithPhotos<T extends Record<string, any>>(
     payload: T,
     photoFields: PhotoField[],
@@ -213,7 +193,7 @@ export class PhotoManagerService {
       }),
     );
 
-    for (const { request, response, storageUsed } of uploadResults) {
+    for (const { request, response } of uploadResults) {
       uploadUrls.push({
         field: request.field,
         fileKey: response.fileKey,
@@ -223,10 +203,9 @@ export class PhotoManagerService {
       });
 
       if (isArrayPath(request.field)) {
-        updatedPayload = await this.updateArrayFieldWithNewFileKey(
+        updatedPayload = this.updateFieldWithFileKey(
           updatedPayload,
           request.field,
-          request.filename,
           response.fileKey,
         );
       } else {
@@ -245,15 +224,6 @@ export class PhotoManagerService {
     };
   }
 
-  /**
-   * Updates an existing object with new photos while managing old files.
-   * Handles:
-   * - Replacing existing images
-   * - Deleting old files
-   * - Calculating storage changes
-   *
-   * Input: payload with new photo data, existingObject with old photo data
-   */
   async updateObjectWithPhotos<T extends Record<string, any>>(
     payload: T,
     existingObject: T,
@@ -266,24 +236,19 @@ export class PhotoManagerService {
     let storageDecrease = 0;
     const deletedFiles: string[] = [];
 
-    const existingFiles = this.extractExistingFiles(
+    const existingFileMap = this.extractExistingFileMap(
       existingObject,
       photoFields,
     );
-    const newPhotoRequests = this.extractPhotoUploadRequests(
-      payload,
-      photoFields,
-      filePrefix,
+    const payloadFileMap = this.extractPayloadFileMap(payload, photoFields);
+
+    const { toUpload, toDelete } = this.calculatePhotoDiffs(
+      existingFileMap,
+      payloadFileMap,
     );
 
-    const filesToDelete = this.determineFilesToDelete(
-      existingFiles,
-      newPhotoRequests,
-    );
-
-    if (filesToDelete.length > 0) {
-      const deleteResults =
-        await this.cloudflareService.deleteFiles(filesToDelete);
+    if (toDelete.length > 0) {
+      const deleteResults = await this.cloudflareService.deleteFiles(toDelete);
       deletedFiles.push(...deleteResults.success);
 
       for (const fileKey of deleteResults.success) {
@@ -294,8 +259,20 @@ export class PhotoManagerService {
       }
     }
 
+    const uploadRequests: PhotoUploadRequest[] = [];
+    for (const { fieldPath } of toUpload) {
+      const filename = getNestedValue(payload, fieldPath) || fieldPath;
+      const size = this.getSizeForField(payload, photoFields, fieldPath);
+      uploadRequests.push({
+        field: fieldPath,
+        filename: filename,
+        size,
+        prefix: filePrefix,
+      });
+    }
+
     const uploadResults = await Promise.all(
-      newPhotoRequests.map(async (request) => {
+      uploadRequests.map(async (request) => {
         const response = await this.cloudflareService.getUploadUrl(
           request.filename,
           request.size,
@@ -318,20 +295,11 @@ export class PhotoManagerService {
         filename: request.filename,
       });
 
-      if (isArrayPath(request.field)) {
-        updatedPayload = await this.updateArrayFieldWithNewFileKey(
-          updatedPayload,
-          request.field,
-          request.filename,
-          response.fileKey,
-        );
-      } else {
-        updatedPayload = setNestedValue(
-          updatedPayload,
-          request.field,
-          response.fileKey,
-        );
-      }
+      updatedPayload = this.updateFieldWithFileKey(
+        updatedPayload,
+        request.field,
+        response.fileKey,
+      );
     }
 
     return {
@@ -343,11 +311,6 @@ export class PhotoManagerService {
     };
   }
 
-  /**
-   * Deletes all photo files associated with an object.
-   * Supports nested paths and array paths.
-   * Returns total storage freed.
-   */
   async deletePhotosFromObject<T extends Record<string, any>>(
     object: T,
     photoFields: PhotoField[],
@@ -376,10 +339,175 @@ export class PhotoManagerService {
     };
   }
 
-  /**
-   * Extracts photo upload requests from payload based on defined photo fields.
-   * Handles both simple fields and array fields.
-   */
+  extractExistingFileMap<T extends Record<string, any>>(
+    object: T,
+    photoFields: PhotoField[],
+  ): FileMap {
+    const map: FileMap = new Map();
+
+    for (const photoField of photoFields) {
+      const fieldValue = getNestedValue(object, photoField.field);
+
+      if (!fieldValue) {
+        continue;
+      }
+
+      if (isArrayPath(photoField.field)) {
+        const arrayFieldPaths = this.getArrayFieldPaths(
+          object,
+          photoField.field,
+        );
+        for (const fieldPath of arrayFieldPaths) {
+          const value = getNestedValue(object, fieldPath);
+          if (value && typeof value === "string" && value.length > 0) {
+            map.set(fieldPath, value);
+          }
+        }
+      } else {
+        if (typeof fieldValue === "string" && fieldValue.length > 0) {
+          map.set(photoField.field, fieldValue);
+        }
+      }
+    }
+
+    return map;
+  }
+
+  private extractPayloadFileMap<T extends Record<string, any>>(
+    payload: T,
+    photoFields: PhotoField[],
+  ): FileMap {
+    const map: FileMap = new Map();
+
+    for (const photoField of photoFields) {
+      const fieldValue = getNestedValue(payload, photoField.field);
+
+      if (!fieldValue) {
+        continue;
+      }
+
+      if (isArrayPath(photoField.field)) {
+        const arrayFieldPaths = this.getArrayFieldPaths(
+          payload,
+          photoField.field,
+        );
+        for (const fieldPath of arrayFieldPaths) {
+          const value = getNestedValue(payload, fieldPath);
+          if (value && typeof value === "string" && value.length > 0) {
+            map.set(fieldPath, value);
+          }
+        }
+      } else {
+        if (typeof fieldValue === "string" && fieldValue.length > 0) {
+          map.set(photoField.field, fieldValue);
+        }
+      }
+    }
+
+    return map;
+  }
+
+  private getArrayFieldPaths<T extends Record<string, any>>(
+    object: T,
+    fieldPattern: string,
+  ): string[] {
+    const { segments } = parseFieldPath(fieldPattern);
+    const lastArrayIndex = segments.findIndex((s) => s.isArray);
+
+    if (lastArrayIndex === -1) {
+      return [];
+    }
+
+    const arrayPath = segments
+      .slice(0, lastArrayIndex + 1)
+      .map((s) => s.key)
+      .join(".");
+    const arrayValue = getNestedValue(object, arrayPath);
+
+    if (!arrayValue || !Array.isArray(arrayValue)) {
+      return [];
+    }
+
+    return getAllArrayItemPaths(fieldPattern, arrayValue.length);
+  }
+
+  private calculatePhotoDiffs(
+    existingMap: FileMap,
+    payloadMap: FileMap,
+  ): { toUpload: PhotoDiffResult[]; toDelete: string[] } {
+    const toUpload: PhotoDiffResult[] = [];
+    const toDelete: string[] = [];
+
+    for (const [fieldPath, filename] of payloadMap) {
+      const existingValue = existingMap.get(fieldPath);
+      if (existingValue && existingValue === filename) {
+        continue;
+      }
+      toUpload.push({ fieldPath, action: "upload" });
+    }
+
+    for (const [fieldPath, existingFileKey] of existingMap) {
+      const payloadFileKey = payloadMap.get(fieldPath);
+      if (!payloadFileKey || payloadFileKey !== existingFileKey) {
+        toDelete.push(existingFileKey);
+      }
+    }
+
+    return { toUpload, toDelete };
+  }
+
+  private getSizeForField<T extends Record<string, any>>(
+    payload: T,
+    photoFields: PhotoField[],
+    fieldPath: string,
+  ): number {
+    for (const photoField of photoFields) {
+      if (!photoField.sizeField) {
+        continue;
+      }
+
+      if (photoField.field === fieldPath) {
+        const sizeValue = getNestedValue(payload, photoField.sizeField);
+        return typeof sizeValue === "number" ? sizeValue : 0;
+      }
+
+      if (isArrayPath(photoField.field)) {
+        const arrayFieldPaths = this.getArrayFieldPaths(
+          payload,
+          photoField.field,
+        );
+        const index = arrayFieldPaths.indexOf(fieldPath);
+
+        if (index !== -1) {
+          const { segments } = parseFieldPath(photoField.field);
+          const arrayPath = segments
+            .slice(0, segments.findIndex((s) => s.isArray) + 1)
+            .map((s) => s.key)
+            .join(".");
+
+          const arrayValue = getNestedValue(payload, arrayPath);
+          if (arrayValue && arrayValue[index]) {
+            const sizeKey = photoField.sizeField.split(".").pop();
+            if (sizeKey) {
+              const sizeValue = arrayValue[index][sizeKey];
+              return typeof sizeValue === "number" ? sizeValue : 0;
+            }
+          }
+        }
+      }
+    }
+
+    return 0;
+  }
+
+  private updateFieldWithFileKey<T extends Record<string, any>>(
+    payload: T,
+    fieldPath: string,
+    fileKey: string,
+  ): T {
+    return setNestedValue(payload, fieldPath, fileKey);
+  }
+
   private extractPhotoUploadRequests<T extends Record<string, any>>(
     payload: T,
     photoFields: PhotoField[],
@@ -395,12 +523,25 @@ export class PhotoManagerService {
       }
 
       if (isArrayPath(photoField.field)) {
-        const arrayRequests = this.extractArrayFieldUploadRequests(
+        const arrayFieldPaths = this.getArrayFieldPaths(
           payload,
-          photoField,
-          filePrefix,
+          photoField.field,
         );
-        requests.push(...arrayRequests);
+        for (const fieldPath of arrayFieldPaths) {
+          const value = getNestedValue(payload, fieldPath);
+          if (!value || typeof value !== "string") {
+            continue;
+          }
+
+          const size = this.getSizeForField(payload, photoFields, fieldPath);
+
+          requests.push({
+            field: fieldPath,
+            filename: value,
+            size,
+            prefix: filePrefix,
+          });
+        }
       } else {
         const sizeValue = photoField.sizeField
           ? getNestedValue(payload, photoField.sizeField)
@@ -420,60 +561,6 @@ export class PhotoManagerService {
     return requests;
   }
 
-  private extractArrayFieldUploadRequests<T extends Record<string, any>>(
-    payload: T,
-    photoField: PhotoField,
-    filePrefix: string,
-  ): PhotoUploadRequest[] {
-    const requests: PhotoUploadRequest[] = [];
-    const { segments } = parseFieldPath(photoField.field);
-
-    const lastArrayIndex = segments.findIndex((s) => s.isArray);
-
-    if (lastArrayIndex === -1) {
-      return requests;
-    }
-
-    const arrayPath = segments
-      .slice(0, lastArrayIndex + 1)
-      .map((s) => s.key)
-      .join(".");
-    const arrayValue = getNestedValue(payload, arrayPath);
-
-    if (!arrayValue || !Array.isArray(arrayValue)) {
-      return requests;
-    }
-
-    const { key: photoKey } = segments[segments.length - 1];
-    const sizeKey = photoField.sizeField
-      ? photoField.sizeField.split(".").pop()
-      : null;
-
-    for (let i = 0; i < arrayValue.length; i++) {
-      const item = arrayValue[i];
-      const photoValue = item[photoKey];
-
-      if (!photoValue || typeof photoValue !== "string") {
-        continue;
-      }
-
-      const sizeValue = sizeKey ? (item[sizeKey] as number) || 0 : 0;
-      const fieldPath = `${arrayPath}[${i}].${photoKey}`;
-
-      requests.push({
-        field: fieldPath,
-        filename: photoValue,
-        size: sizeValue,
-        prefix: filePrefix,
-      });
-    }
-
-    return requests;
-  }
-
-  /**
-   * Extracts existing file keys from an object based on defined photo fields.
-   */
   private extractExistingFiles<T extends Record<string, any>>(
     object: T,
     photoFields: PhotoField[],
@@ -488,27 +575,14 @@ export class PhotoManagerService {
       }
 
       if (isArrayPath(photoField.field)) {
-        const { segments } = parseFieldPath(photoField.field);
-        const lastArrayIndex = segments.findIndex((s) => s.isArray);
-
-        if (lastArrayIndex === -1) {
-          continue;
-        }
-
-        const arrayPath = segments
-          .slice(0, lastArrayIndex + 1)
-          .map((s) => s.key)
-          .join(".");
-        const arrayValue = getNestedValue(object, arrayPath);
-
-        if (!arrayValue || !Array.isArray(arrayValue)) {
-          continue;
-        }
-
-        const { key } = segments[segments.length - 1];
-        for (const item of arrayValue) {
-          if (item && item[key] && typeof item[key] === "string") {
-            fileKeys.push(item[key]);
+        const arrayFieldPaths = this.getArrayFieldPaths(
+          object,
+          photoField.field,
+        );
+        for (const fieldPath of arrayFieldPaths) {
+          const value = getNestedValue(object, fieldPath);
+          if (value && typeof value === "string" && value.length > 0) {
+            fileKeys.push(value);
           }
         }
       } else if (typeof fieldValue === "string" && fieldValue.length > 0) {
@@ -517,75 +591,5 @@ export class PhotoManagerService {
     }
 
     return fileKeys;
-  }
-
-  /**
-   * Determines which files should be deleted when updating.
-   * Compares existing files with new photo requests.
-   */
-  private determineFilesToDelete(
-    existingFiles: string[],
-    newRequests: PhotoUploadRequest[],
-  ): string[] {
-    const newFilenames = new Set(
-      newRequests.map((r) => this.normalizeFilename(r.filename)),
-    );
-
-    return existingFiles.filter(
-      (file) => !newFilenames.has(this.normalizeFilename(file)),
-    );
-  }
-
-  private normalizeFilename(filename: string): string {
-    return filename.split("/").pop() || filename;
-  }
-
-  /**
-   * Updates an array field with a new file key.
-   * This handles the case where a new file replaces an existing one in an array.
-   */
-  private async updateArrayFieldWithNewFileKey<T extends Record<string, any>>(
-    payload: T,
-    fieldPath: string,
-    oldFilename: string,
-    newFileKey: string,
-  ): Promise<T> {
-    const { segments } = parseFieldPath(fieldPath);
-    const lastArrayIndex = segments.findIndex((s) => s.isArray);
-
-    if (lastArrayIndex === -1) {
-      return payload;
-    }
-
-    const arrayPath = segments
-      .slice(0, lastArrayIndex + 1)
-      .map((s) => s.key)
-      .join(".");
-    const { key: photoKey } = segments[segments.length - 1];
-
-    const arrayValue = getNestedValue(payload, arrayPath);
-
-    if (!arrayValue || !Array.isArray(arrayValue)) {
-      return payload;
-    }
-
-    const oldNormalized = this.normalizeFilename(oldFilename);
-
-    const updatedArray = arrayValue.map((item: Record<string, any>) => {
-      const itemPhotoValue = item[photoKey];
-      if (!itemPhotoValue) {
-        return item;
-      }
-
-      const itemNormalized = this.normalizeFilename(itemPhotoValue);
-
-      if (itemNormalized === oldNormalized) {
-        return { ...item, [photoKey]: newFileKey };
-      }
-
-      return item;
-    });
-
-    return setNestedValue(payload, arrayPath, updatedArray);
   }
 }
