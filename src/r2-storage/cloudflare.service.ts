@@ -92,12 +92,16 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
     return this.options;
   }
 
-  private sanitizeFilename(filename: string): string {
+  private sanitizeFilename(filename: string, unique = true): string {
     const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const unique = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    if (!unique) return sanitized;
+
+    const uniqueSuffix = `${Date.now()}`;
     const ext = path.extname(sanitized);
     const basename = path.basename(sanitized, ext);
-    return `${basename}_${unique}${ext}`;
+
+    return `${basename}_${uniqueSuffix}${ext}`;
   }
 
   private detectMimeType(
