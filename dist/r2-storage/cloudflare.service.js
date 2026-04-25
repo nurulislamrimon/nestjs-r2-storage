@@ -97,12 +97,14 @@ let CloudflareService = class CloudflareService {
     getOptions() {
         return this.options;
     }
-    sanitizeFilename(filename) {
+    sanitizeFilename(filename, unique = true) {
         const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const unique = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        if (!unique)
+            return sanitized;
+        const uniqueSuffix = `${Date.now()}`;
         const ext = path.extname(sanitized);
         const basename = path.basename(sanitized, ext);
-        return `${basename}_${unique}${ext}`;
+        return `${basename}_${uniqueSuffix}${ext}`;
     }
     detectMimeType(filename, fallbackContentType = "application/octet-stream") {
         const mimeType = mime.lookup(filename);

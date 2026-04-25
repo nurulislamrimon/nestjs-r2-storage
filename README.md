@@ -406,6 +406,17 @@ R2StorageModule.forRootAsync({
 
 ## Changelog
 
+### v1.5.0 (2026-04-25)
+
+- **Refactored photo update logic** - Diff-based (state reconciliation) instead of request-driven
+- **No unnecessary uploads** - Files are only uploaded when the value actually changes
+- **No accidental deletions** - Files are only deleted when removed from the payload
+- **Index-based array handling** - Array fields use path-based comparison (`gallery[0].photo`) instead of filename matching
+- **Reusable `extractExistingFileMap()`** - Public method for extracting `fieldPath → fileKey` maps
+- **Optimized traversal** - Single-pass map extraction, O(1) lookups via Map
+- **Size is optional** - Size field does not affect diff logic, only used for storage tracking
+- **Deterministic behavior** - Backend-driven, no assumptions about frontend behavior
+
 ### v1.2.6 (2025-04-20)
 
 - Refactored getNestedValue: access key first, then handle array segments
