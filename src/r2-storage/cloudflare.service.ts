@@ -1,40 +1,37 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Inject, BadRequestException } from '@nestjs/common';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import * as path from 'path';
-import * as mime from 'mime-types';
-import { StorageOptions, AccessMode } from './interfaces/storage-options.interface';
-import { STORAGE_OPTIONS } from './constants';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Inject,
+  BadRequestException,
+} from "@nestjs/common";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import * as path from "path";
+import * as mime from "mime-types";
+import {
+  StorageOptions,
+  AccessMode,
+} from "./interfaces/storage-options.interface";
+import { STORAGE_OPTIONS } from "./constants";
+import { validateOptions } from "./utils/validate-options.utils";
+import {
+  DownloadUrlResult,
+  FileInfo,
+  UploadUrlResult,
+} from "./interfaces/cloudflare-service.interface";
 
 export class AccessModeError extends BadRequestException {
   constructor(message: string) {
     super(message);
-    this.name = 'AccessModeError';
+    this.name = "AccessModeError";
   }
-}
-
-export interface UploadUrlResult {
-  uploadUrl: string;
-  fileKey: string;
-  publicUrl: string | null;
-  mimeType: string;
-  /**
-   * File size constraint for client-side validation.
-   * This is NOT passed to AWS SDK signing to avoid SignatureDoesNotMatch errors.
-   * Clients should validate file size before uploading.
-   */
-  sizeField?: number;
-}
-
-export interface DownloadUrlResult {
-  downloadUrl: string;
-  publicUrl: string | null;
-}
-
-export interface FileInfo {
-  size: number;
-  lastModified?: Date;
-  contentType?: string;
 }
 
 @Injectable()
@@ -42,12 +39,12 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
   private s3Client!: S3Client;
   private options: StorageOptions;
   private readonly defaultExpiry = 3600;
-  private readonly defaultAccessMode: AccessMode = 'hybrid';
+  private readonly defaultAccessMode: AccessMode = "hybrid";
 
   constructor(
     @Inject(STORAGE_OPTIONS) private readonly storageOptions: StorageOptions,
   ) {
-    this.options = storageOptions;
+    this.options = this.storageOptions;
   }
 
   private get accessMode(): AccessMode {
@@ -55,18 +52,11 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
   }
 
   private isPublicAccessAllowed(): boolean {
-    return this.accessMode === 'public-read' || this.accessMode === 'hybrid';
-  }
-
-  private ensurePublicAccessAllowed(): void {
-    if (this.accessMode === 'private') {
-      throw new AccessModeError(
-        'Public URL generation is not allowed in "private" access mode. Use presigned URLs for file access.',
-      );
-    }
+    return this.accessMode === "public-read" || this.accessMode === "hybrid";
   }
 
   onModuleInit() {
+    validateOptions(this.options);
     this.initializeClient();
   }
 
@@ -79,28 +69,23 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
   private initializeClient(): void {
     /**
      * Configure S3Client for Cloudflare R2.
-     * 
+     *
      * requestChecksumCalculation: "WHEN_REQUIRED" prevents AWS SDK from automatically
      * adding checksum headers (MD5, CRC32, etc.) that break with R2's S3-compatible API.
-     * 
+     *
      * forcePathStyle: true is required for R2 (uses path-style URLs).
      * region: "auto" is required for R2.
      */
     this.s3Client = new S3Client({
       endpoint: this.options.endpoint,
-      region: this.options.region || 'auto',
+      region: this.options.region || "auto",
       credentials: {
         accessKeyId: this.options.accessKeyId,
         secretAccessKey: this.options.secretAccessKey,
       },
       forcePathStyle: true,
-      requestChecksumCalculation: 'WHEN_REQUIRED',
+      requestChecksumCalculation: "WHEN_REQUIRED",
     });
-  }
-
-  setOptions(options: StorageOptions): void {
-    this.options = options;
-    this.initializeClient();
   }
 
   getOptions(): StorageOptions {
@@ -108,14 +93,17 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
   }
 
   private sanitizeFilename(filename: string): string {
-    const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const timestamp = Date.now();
+    const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const unique = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const ext = path.extname(sanitized);
     const basename = path.basename(sanitized, ext);
-    return `${basename}_${timestamp}${ext}`;
+    return `${basename}_${unique}${ext}`;
   }
 
-  private detectMimeType(filename: string, fallbackContentType: string = 'application/octet-stream'): string {
+  private detectMimeType(
+    filename: string,
+    fallbackContentType: string = "application/octet-stream",
+  ): string {
     const mimeType = mime.lookup(filename);
     return mimeType || fallbackContentType;
   }
@@ -128,7 +116,7 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
   ): Promise<UploadUrlResult> {
     const filename = customFilename || path.basename(fileKey);
     const sanitizedFilename = this.sanitizeFilename(filename);
-    const finalFileKey = fileKey.includes('/')
+    const finalFileKey = fileKey.includes("/")
       ? `${path.dirname(fileKey)}/${sanitizedFilename}`
       : sanitizedFilename;
 
@@ -136,12 +124,12 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
 
     /**
      * Create PutObjectCommand WITHOUT ContentLength.
-     * 
+     *
      * Why ContentLength is NOT used in signing:
      * - Browsers may calculate Content-Length differently (with/without compression)
      * - This causes SignatureDoesNotMatch errors during upload
      * - The signed URL should only authorize the operation, not the exact payload size
-     * 
+     *
      * Use sizeField instead to let clients validate file size before upload.
      */
     const command = new PutObjectCommand({
@@ -156,9 +144,9 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
      * Only signs: host (and content-type if provided).
      * Explicitly prevents signing content-length to avoid browser inconsistency.
      */
-    const uploadUrl = await getSignedUrl(this.s3Client, command, { 
+    const uploadUrl = await getSignedUrl(this.s3Client, command, {
       expiresIn: expiry,
-      signableHeaders: new Set(['host', 'content-type']),
+      signableHeaders: new Set(["host", "content-type"]),
     });
 
     let publicUrl: string | null = null;
@@ -182,7 +170,9 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
     });
 
     const expiry = this.options.signedUrlExpiry || this.defaultExpiry;
-    const downloadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: expiry });
+    const downloadUrl = await getSignedUrl(this.s3Client, command, {
+      expiresIn: expiry,
+    });
 
     let publicUrl: string | null = null;
     if (this.options.publicUrlBase && this.isPublicAccessAllowed()) {
@@ -210,7 +200,9 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async deleteFiles(fileKeys: string[]): Promise<{ success: string[]; failed: string[] }> {
+  async deleteFiles(
+    fileKeys: string[],
+  ): Promise<{ success: string[]; failed: string[] }> {
     const results = await Promise.all(
       fileKeys.map(async (fileKey) => {
         const success = await this.deleteFile(fileKey);
@@ -237,8 +229,11 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
         lastModified: response.LastModified,
         contentType: response.ContentType,
       };
-    } catch (error) {
-      return null;
+    } catch (error: any) {
+      if (error?.$metadata?.httpStatusCode === 404) {
+        return null;
+      }
+      throw error;
     }
   }
 
@@ -248,8 +243,6 @@ export class CloudflareService implements OnModuleInit, OnModuleDestroy {
   }
 
   generateFileKey(prefix: string, filename: string): string {
-    const timestamp = Date.now();
-    const sanitizedFilename = this.sanitizeFilename(filename);
-    return `${prefix}/${timestamp}_${sanitizedFilename}`;
+    return `${prefix}/${this.sanitizeFilename(filename)}`;
   }
 }
