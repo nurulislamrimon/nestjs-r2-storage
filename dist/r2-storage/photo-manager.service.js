@@ -272,9 +272,10 @@ let PhotoManagerService = class PhotoManagerService {
             }
             toUpload.push({ fieldPath, action: "upload" });
         }
-        for (const [fieldPath, fileKey] of existingMap) {
-            if (!payloadMap.has(fieldPath)) {
-                toDelete.push(fileKey);
+        for (const [fieldPath, existingFileKey] of existingMap) {
+            const payloadFileKey = payloadMap.get(fieldPath);
+            if (!payloadFileKey || payloadFileKey !== existingFileKey) {
+                toDelete.push(existingFileKey);
             }
         }
         return { toUpload, toDelete };
