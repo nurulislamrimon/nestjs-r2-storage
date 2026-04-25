@@ -1,23 +1,8 @@
-import { OnModuleInit, OnModuleDestroy, BadRequestException } from '@nestjs/common';
-import { StorageOptions } from './interfaces/storage-options.interface';
+import { OnModuleInit, OnModuleDestroy, BadRequestException } from "@nestjs/common";
+import { StorageOptions } from "./interfaces/storage-options.interface";
+import { DownloadUrlResult, FileInfo, UploadUrlResult } from "./interfaces/cloudflare-service.interface";
 export declare class AccessModeError extends BadRequestException {
     constructor(message: string);
-}
-export interface UploadUrlResult {
-    uploadUrl: string;
-    fileKey: string;
-    publicUrl: string | null;
-    mimeType: string;
-    sizeField?: number;
-}
-export interface DownloadUrlResult {
-    downloadUrl: string;
-    publicUrl: string | null;
-}
-export interface FileInfo {
-    size: number;
-    lastModified?: Date;
-    contentType?: string;
 }
 export declare class CloudflareService implements OnModuleInit, OnModuleDestroy {
     private readonly storageOptions;
@@ -28,11 +13,9 @@ export declare class CloudflareService implements OnModuleInit, OnModuleDestroy 
     constructor(storageOptions: StorageOptions);
     private get accessMode();
     private isPublicAccessAllowed;
-    private ensurePublicAccessAllowed;
     onModuleInit(): void;
     onModuleDestroy(): void;
     private initializeClient;
-    setOptions(options: StorageOptions): void;
     getOptions(): StorageOptions;
     private sanitizeFilename;
     private detectMimeType;

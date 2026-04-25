@@ -52,10 +52,11 @@ const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const path = __importStar(require("path"));
 const mime = __importStar(require("mime-types"));
 const constants_1 = require("./constants");
+const validate_options_utils_1 = require("./utils/validate-options.utils");
 class AccessModeError extends common_1.BadRequestException {
     constructor(message) {
         super(message);
-        this.name = 'AccessModeError';
+        this.name = "AccessModeError";
     }
 }
 exports.AccessModeError = AccessModeError;
@@ -63,21 +64,17 @@ let CloudflareService = class CloudflareService {
     constructor(storageOptions) {
         this.storageOptions = storageOptions;
         this.defaultExpiry = 3600;
-        this.defaultAccessMode = 'hybrid';
-        this.options = storageOptions;
+        this.defaultAccessMode = "hybrid";
+        this.options = this.storageOptions;
     }
     get accessMode() {
         return this.options.accessMode || this.defaultAccessMode;
     }
     isPublicAccessAllowed() {
-        return this.accessMode === 'public-read' || this.accessMode === 'hybrid';
-    }
-    ensurePublicAccessAllowed() {
-        if (this.accessMode === 'private') {
-            throw new AccessModeError('Public URL generation is not allowed in "private" access mode. Use presigned URLs for file access.');
-        }
+        return this.accessMode === "public-read" || this.accessMode === "hybrid";
     }
     onModuleInit() {
+        (0, validate_options_utils_1.validateOptions)(this.options);
         this.initializeClient();
     }
     onModuleDestroy() {
@@ -88,37 +85,33 @@ let CloudflareService = class CloudflareService {
     initializeClient() {
         this.s3Client = new client_s3_1.S3Client({
             endpoint: this.options.endpoint,
-            region: this.options.region || 'auto',
+            region: this.options.region || "auto",
             credentials: {
                 accessKeyId: this.options.accessKeyId,
                 secretAccessKey: this.options.secretAccessKey,
             },
             forcePathStyle: true,
-            requestChecksumCalculation: 'WHEN_REQUIRED',
+            requestChecksumCalculation: "WHEN_REQUIRED",
         });
-    }
-    setOptions(options) {
-        this.options = options;
-        this.initializeClient();
     }
     getOptions() {
         return this.options;
     }
     sanitizeFilename(filename) {
-        const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const timestamp = Date.now();
+        const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const unique = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const ext = path.extname(sanitized);
         const basename = path.basename(sanitized, ext);
-        return `${basename}_${timestamp}${ext}`;
+        return `${basename}_${unique}${ext}`;
     }
-    detectMimeType(filename, fallbackContentType = 'application/octet-stream') {
+    detectMimeType(filename, fallbackContentType = "application/octet-stream") {
         const mimeType = mime.lookup(filename);
         return mimeType || fallbackContentType;
     }
     async getUploadUrl(fileKey, fileSize, customFilename, contentType) {
         const filename = customFilename || path.basename(fileKey);
         const sanitizedFilename = this.sanitizeFilename(filename);
-        const finalFileKey = fileKey.includes('/')
+        const finalFileKey = fileKey.includes("/")
             ? `${path.dirname(fileKey)}/${sanitizedFilename}`
             : sanitizedFilename;
         const mimeType = contentType || this.detectMimeType(sanitizedFilename);
@@ -130,7 +123,7 @@ let CloudflareService = class CloudflareService {
         const expiry = this.options.signedUrlExpiry || this.defaultExpiry;
         const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, {
             expiresIn: expiry,
-            signableHeaders: new Set(['host', 'content-type']),
+            signableHeaders: new Set(["host", "content-type"]),
         });
         let publicUrl = null;
         if (this.options.publicUrlBase && this.isPublicAccessAllowed()) {
@@ -150,7 +143,9 @@ let CloudflareService = class CloudflareService {
             Key: fileKey,
         });
         const expiry = this.options.signedUrlExpiry || this.defaultExpiry;
-        const downloadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, { expiresIn: expiry });
+        const downloadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, {
+            expiresIn: expiry,
+        });
         let publicUrl = null;
         if (this.options.publicUrlBase && this.isPublicAccessAllowed()) {
             publicUrl = `${this.options.publicUrlBase}/${fileKey}`;
@@ -198,7 +193,10 @@ let CloudflareService = class CloudflareService {
             };
         }
         catch (error) {
-            return null;
+            if (error?.$metadata?.httpStatusCode === 404) {
+                return null;
+            }
+            throw error;
         }
     }
     async fileExists(fileKey) {
@@ -206,9 +204,7 @@ let CloudflareService = class CloudflareService {
         return fileInfo !== null;
     }
     generateFileKey(prefix, filename) {
-        const timestamp = Date.now();
-        const sanitizedFilename = this.sanitizeFilename(filename);
-        return `${prefix}/${timestamp}_${sanitizedFilename}`;
+        return `${prefix}/${this.sanitizeFilename(filename)}`;
     }
 };
 exports.CloudflareService = CloudflareService;

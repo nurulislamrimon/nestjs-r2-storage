@@ -1,4 +1,4 @@
-export type AccessMode = 'private' | 'public-read' | 'hybrid';
+export type AccessMode = "private" | "public-read" | "hybrid";
 export interface StorageOptions {
     endpoint: string;
     accessKeyId: string;
