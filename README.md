@@ -17,6 +17,7 @@ Production-ready NestJS module for Cloudflare R2 object storage management.
 - **File Deletion** - Delete files from R2 storage
 - **Nested Field Support** - Handle paths like `shop.logo`, `profile.avatar`
 - **Array Field Support** - Handle paths like `products[].image`, `gallery[].photo`
+- **Nested Array Paths** - Handle paths like `order_items[].product.photo_1`
 - **Storage Usage Tracking** - Track storage used, increased, and decreased
 - **Full CRUD Lifecycle** - Create, Update, Delete file operations
 - **Access Control Modes** - Control public vs signed URL access (`private`, `public-read`, `hybrid`)
@@ -187,6 +188,72 @@ export class ProductService {
 }
 ```
 
+## Nested Array Paths
+
+The package supports accessing nested properties within array items using paths like `order_items[].product.photo_1`.
+
+### Example: E-commerce Order with Product Photos
+
+```typescript
+const order = {
+  id: "order_123",
+  order_items: [
+    {
+      product: {
+        id: "prod_1",
+        name: "Laptop",
+        photo_1: "laptop.png",
+        photo_1_size: 50000,
+      },
+    },
+    {
+      product: {
+        id: "prod_2",
+        name: "Mouse",
+        photo_1: "mouse.png",
+        photo_1_size: 10000,
+      },
+    },
+  ],
+};
+
+const photoFields: PhotoField[] = [
+  {
+    field: "order_items[].product.photo_1",
+    sizeField: "order_items[].product.photo_1_size",
+    urlField: "order_items[].product.photo_1_url",
+  },
+];
+
+// Generate signed URLs for all product photos
+const result = await photoManager.appendPhotoUrls(order, photoFields);
+
+// Result:
+// {
+//   id: "order_123",
+//   order_items: [
+//     {
+//       product: {
+//         id: "prod_1",
+//         name: "Laptop",
+//         photo_1: "laptop.png",
+//         photo_1_size: 50000,
+//         photo_1_url: "https://signed-url-for-laptop..."
+//       }
+//     },
+//     {
+//       product: {
+//         id: "prod_2",
+//         name: "Mouse",
+//         photo_1: "mouse.png",
+//         photo_1_size: 10000,
+//         photo_1_url: "https://signed-url-for-mouse..."
+//       }
+//     }
+//   ]
+// }
+```
+
 ## API Reference
 
 ### CloudflareService
@@ -241,6 +308,7 @@ const photoFields: PhotoField[] = [
   { field: "shop.logo", urlField: "logo_url" },
   { field: "products[].image", urlField: "image_url" },
   { field: "gallery[].photo", urlField: "photo_url" },
+  { field: "order_items[].product.photo_1", urlField: "photo_1_url" },
 ];
 
 const result = await photoManager.appendPhotoUrls(product, photoFields);
@@ -350,6 +418,14 @@ products[].image      -> products[0].image, products[1].image, ...
 variants[].images[]   -> variants[0].images[0], variants[0].images[1], ...
 ```
 
+### Nested Array Paths
+
+```
+order_items[].product.photo_1        -> Access photo_1 inside product inside each order item
+users[].profile.avatar               -> Access avatar inside profile inside each user
+categories[].items[].image           -> Deeply nested arrays with properties
+```
+
 ### Supported Patterns
 
 | Path                       | Description                     |
@@ -359,6 +435,7 @@ variants[].images[]   -> variants[0].images[0], variants[0].images[1], ...
 | `gallery[].photo`          | Array of objects                |
 | `products[].images[]`      | Array containing array          |
 | `variants[0].images[].url` | Indexed array with nested array |
+| `order_items[].product.photo_1` | Nested property in array items |
 
 ## Configuration Options
 
@@ -405,6 +482,13 @@ R2StorageModule.forRootAsync({
 ```
 
 ## Changelog
+
+### v1.6.0 (2026-05-03)
+
+- **Nested array path support** - Handle paths like `order_items[].product.photo_1`
+- **Improved path parsing** - Better handling of nested properties after array notation
+- **New utility function** - Added `getSubPathAfterArray()` to extract sub-paths after array segments
+- **Updated exports** - Replaced `getArrayBasePath` and `getArrayElementPath` with `getSubPathAfterArray`
 
 ### v1.5.0 (2026-04-25)
 

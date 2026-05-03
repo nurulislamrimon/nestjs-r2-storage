@@ -6,6 +6,7 @@ import {
   isArrayPath,
   parseFieldPath,
   getAllArrayItemPaths,
+  getSubPathAfterArray,
 } from "./utils/nested-value.util";
 import {
   AppendUrlsOptions,
@@ -131,26 +132,33 @@ export class PhotoManagerService {
     }
 
     const urlField = photoField.urlField || urlFieldFn(photoField.field);
-    const { key: photoKey } = segments[segments.length - 1];
+    const subPath = getSubPathAfterArray(photoField.field);
 
     const updatedArray = await Promise.all(
-      arrayValue.map(async (arrayItem: Record<string, any>) => {
-        const photoValue = arrayItem[photoKey];
+      arrayValue.map(async (arrayItem: Record<string, any>, index: number) => {
+        const photoValue = subPath ? getNestedValue(arrayItem, subPath) : arrayItem;
 
         if (!photoValue) {
-          return { ...arrayItem, [urlField]: null };
+          return { ...arrayItem };
         }
 
         try {
           const { downloadUrl, publicUrl } =
             await this.cloudflareService.getDownloadUrl(photoValue);
           const finalUrl = publicUrl || downloadUrl;
+
+          if (subPath) {
+            return setNestedValue(arrayItem, `${subPath}_url`, finalUrl);
+          }
           return { ...arrayItem, [urlField]: finalUrl };
         } catch (error) {
           console.error(
             `Failed to generate download URL for ${photoValue}:`,
             error,
           );
+          if (subPath) {
+            return setNestedValue(arrayItem, `${subPath}_url`, null);
+          }
           return { ...arrayItem, [urlField]: null };
         }
       }),
@@ -487,11 +495,11 @@ export class PhotoManagerService {
 
           const arrayValue = getNestedValue(payload, arrayPath);
           if (arrayValue && arrayValue[index]) {
-            const sizeKey = photoField.sizeField.split(".").pop();
-            if (sizeKey) {
-              const sizeValue = arrayValue[index][sizeKey];
-              return typeof sizeValue === "number" ? sizeValue : 0;
-            }
+            const sizeSubPath = getSubPathAfterArray(photoField.sizeField);
+            const sizeValue = sizeSubPath
+              ? getNestedValue(arrayValue[index], sizeSubPath)
+              : arrayValue[index][photoField.sizeField];
+            return typeof sizeValue === "number" ? sizeValue : 0;
           }
         }
       }

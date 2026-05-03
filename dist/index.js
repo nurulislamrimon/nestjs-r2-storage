@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAllArrayItemPaths = exports.getArrayElementPath = exports.getArrayBasePath = exports.isArrayPath = exports.collectNestedValues = exports.setNestedValue = exports.getNestedValue = exports.parseFieldPath = exports.StorageInfo = exports.UploadUrls = exports.PhotoFields = exports.R2StorageModule = exports.PhotoManagerService = exports.AccessModeError = exports.CloudflareService = void 0;
+exports.getAllArrayItemPaths = exports.getSubPathAfterArray = exports.isArrayPath = exports.collectNestedValues = exports.setNestedValue = exports.getNestedValue = exports.parseFieldPath = exports.StorageInfo = exports.UploadUrls = exports.PhotoFields = exports.R2StorageModule = exports.PhotoManagerService = exports.AccessModeError = exports.CloudflareService = void 0;
 var cloudflare_service_1 = require("./r2-storage/cloudflare.service");
 Object.defineProperty(exports, "CloudflareService", { enumerable: true, get: function () { return cloudflare_service_1.CloudflareService; } });
 Object.defineProperty(exports, "AccessModeError", { enumerable: true, get: function () { return cloudflare_service_1.AccessModeError; } });
@@ -18,7 +18,6 @@ Object.defineProperty(exports, "getNestedValue", { enumerable: true, get: functi
 Object.defineProperty(exports, "setNestedValue", { enumerable: true, get: function () { return nested_value_util_1.setNestedValue; } });
 Object.defineProperty(exports, "collectNestedValues", { enumerable: true, get: function () { return nested_value_util_1.collectNestedValues; } });
 Object.defineProperty(exports, "isArrayPath", { enumerable: true, get: function () { return nested_value_util_1.isArrayPath; } });
-Object.defineProperty(exports, "getArrayBasePath", { enumerable: true, get: function () { return nested_value_util_1.getArrayBasePath; } });
-Object.defineProperty(exports, "getArrayElementPath", { enumerable: true, get: function () { return nested_value_util_1.getArrayElementPath; } });
+Object.defineProperty(exports, "getSubPathAfterArray", { enumerable: true, get: function () { return nested_value_util_1.getSubPathAfterArray; } });
 Object.defineProperty(exports, "getAllArrayItemPaths", { enumerable: true, get: function () { return nested_value_util_1.getAllArrayItemPaths; } });
 //# sourceMappingURL=index.js.map
